@@ -10,6 +10,11 @@ Suno.ai v3 is an amazing AI music service. Although the official API is not yet 
 
 We discovered that some users have similar needs, so we decided to open-source this project, hoping you'll like it.
 
+## Demo
+
+We have deployed an example bound to a free Suno account, so it has daily usage limits, but you can see how it runs:
+[https://...](https://...)
+
 ## Features
 
 - Perfectly implements the creation API from app.suno.ai
@@ -17,12 +22,6 @@ We discovered that some users have similar needs, so we decided to open-source t
 - One-click deployment to Vercel
 - In addition to the standard API, it also adapts to the API Schema of Agent platforms like GPTs and Coze, so you can use it as a tool/plugin/Action for LLMs and integrate it into any AI Agent.
 - Permissive open-source license, allowing you to freely integrate and modify.
-
-## Demo
-
-We have deployed an example bound to a free Suno account, so it has daily usage limits, but you can see how it runs:
-
-https://...
 
 ## Getting Started
 
