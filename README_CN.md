@@ -2,7 +2,7 @@
 
 [English](./README.md) | [简体中文](./README_CN.md)
 
-Use API to call the music generation service of suno.ai, and easily integrate it into agents like GPTs.
+用 API 调用 suno.ai 的音乐生成服务，并且可以轻松集成到 GPTs 等 agent 中。
 
 ## 简介
 
