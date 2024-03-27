@@ -40,6 +40,7 @@ Suno API 目前主要实现了以下 API:
 
 ```bash
 - `/api/generate`: 创建音乐
+- `/api/custom_generate`: 创建音乐（自定义模式，支持设置歌词、音乐风格、设置标题等）
 - `/api/get`: 获取音乐
 - `/api/get_limit`: 获取配额信息
 ```
