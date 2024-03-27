@@ -40,8 +40,9 @@ We have deployed an example bound to a free Suno account, so it has daily usage 
 Suno API currently mainly implements the following APIs:
 
 ```bash
-- `/api/create`: Create music
-- `/api/get`: Get music
+- `/api/generate`: Generate music
+- `/api/get`: Get music Info
+- `/api/get_limit`: Get quota Info
 ```
 
 ## Integration with Custom Agents
