@@ -43,7 +43,7 @@ Suno API 目前主要实现了以下 API:
 - `/api/get`: 获取音乐
 ```
 
-## 集成到你的常见 Agent 中
+## 集成到到常见的自定义 Agent 中
 
 ### 集成到 GPTs
 

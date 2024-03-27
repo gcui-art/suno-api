@@ -44,7 +44,7 @@ Suno API currently mainly implements the following APIs:
 - `/api/get`: Get music
 ```
 
-## Integration with Common Agents
+## Integration with Custom Agents
 
 ### Integration with GPTs
 
