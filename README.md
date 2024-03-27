@@ -1,36 +1,71 @@
-This is a [Next.js](https://nextjs.org/) project bootstrapped with [`create-next-app`](https://github.com/vercel/next.js/tree/canary/packages/create-next-app).
+# Suno AI API
+
+[English](./README.md) | [简体中文](./README_CN.md)
+
+Use API to call the music generation service of Suno.ai and easily integrate it into agents like GPTs.
+
+## Introduction
+
+Suno.ai v3 is an amazing AI music service. Although the official API is not yet available, we couldn't wait to integrate its capabilities somewhere.
+
+We discovered that some users have similar needs, so we decided to open-source this project, hoping you'll like it.
+
+## Features
+
+- Perfectly implements the creation API from app.suno.ai
+- Supports Custom Mode
+- One-click deployment to Vercel
+- In addition to the standard API, it also adapts to the API Schema of Agent platforms like GPTs and Coze, so you can use it as a tool/plugin/Action for LLMs and integrate it into any AI Agent.
+- Permissive open-source license, allowing you to freely integrate and modify.
+
+## Demo
+
+We have deployed an example bound to a free Suno account, so it has daily usage limits, but you can see how it runs:
+
+https://...
 
 ## Getting Started
 
-First, run the development server:
+### 1. Obtain the cookie of your app.suno.ai account
+
+### 2. Clone and deploy this project
+
+### 3. Configure suno-api
+
+### 4. Run suno api
+
+### 5. Create more freely
+
+## API Reference
+
+Suno API currently mainly implements the following APIs:
 
 ```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+- `/api/create`: Create music
+- `/api/get`: Get music
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+## Integration with Common Agents
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+### Integration with GPTs
 
-This project uses [`next/font`](https://nextjs.org/docs/basic-features/font-optimization) to automatically optimize and load Inter, a custom Google Font.
+### Integration with Coze
 
-## Learn More
+### Integration with Dify
 
-To learn more about Next.js, take a look at the following resources:
+## Contribution Guidelines
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+## License
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js/) - your feedback and contributions are welcome!
+LGPL-3.0 or later
 
-## Deploy on Vercel
+## Contact Us
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+- Contact us: <support@gcui.art>
+- Join our [Discord](https://...)
+- Follow us on Twitter: [@gcui](https://twitter.com/gcui_art)
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/deployment) for more details.
+## Related Links
+
+- Project repository: [github.com/gcui-art/suno-api](https://github.com/gcui-art/suno-api)
+- Suno.ai official website: [suno.ai](https://suno.ai)
