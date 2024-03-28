@@ -35,7 +35,7 @@ We have deployed an example bound to a free Suno account, so it has daily usage 
 2. Open up the browser console: hit `F12` or access the `Developer Tools`.
 3. Navigate to the `Network tab`.
 4. Give the page a quick refresh.
-5. Identify the request that includes the keyword `client?\_clerk_js_version`.
+5. Identify the request that includes the keyword `client?_clerk_js_version`.
 6. Click on it and switch over to the `Header` tab.
 7. Locate the `Cookie` section, hover your mouse over it, and copy the value of the Cookie.
 
