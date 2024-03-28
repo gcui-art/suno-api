@@ -1,5 +1,7 @@
 # Suno AI API
 
+![suno-api banner](https://github.com/gcui-art/suno-api/blob/feature-SunoAPI-kane/public/suno-banner.png)
+
 [English](./README.md) | [简体中文](./README_CN.md)
 
 Use API to call the music generation service of Suno.ai and easily integrate it into agents like GPTs.
