@@ -11,10 +11,12 @@
 Suno.ai v3 是一个令人惊叹的 AI 音乐服务，虽然官方还没有开放 API，但我们已经迫不及待的想在某些地方集成它的能力。
 我们发现有一些用户也有类似需求，于是我们将这个项目开源了，希望你们喜欢。
 
+👉 我们更新很快，欢迎 Star。
+
 ## Demo
 
 我们部署了一个示例，绑定了一个免费的 suno 账号，所以它每天有使用限制，但你可以看到它运行起来的样子：
-[https://...](https://...)
+[suno-api.vercel.app](https://suno-api.vercel.app)
 
 ## Features
 
@@ -44,7 +46,7 @@ Suno.ai v3 是一个令人惊叹的 AI 音乐服务，虽然官方还没有开�
 
 #### 部署到 Vercel
 
-[button]
+[![部署到 Vercel](https://vercel.com/button)](https://vercel.com/new/clone?repository-url=https%3A%2F%2Fgithub.com%2Fgcui-art%2Fsuno-api&env=SUNO_COOKIE&project-name=suno-api&repository-name=suno-api)
 
 #### 本地运行
 
