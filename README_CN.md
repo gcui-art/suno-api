@@ -26,6 +26,15 @@ Suno.ai v3 是一个令人惊叹的 AI 音乐服务，虽然官方还没有开�
 
 ### 1. 获取你的 app.suno.ai 账号的 cookie
 
+1. 打开浏览器的控制台：按下 F12，或者`开发者工具`
+2. 选择`网络`标签
+3. 刷新页面
+4. 找到包含`client?_clerk_js_version`关键词的请求
+5. 点击并切换到 Header 标签
+6. 找到 Cookie，鼠标复制 Cookie 的值
+
+<video src="https://github.com/gcui-art/suno-api/blob/main/public/get-cookie-demo.mp4"></video>
+
 ### 2. 克隆并部署本项目
 
 ### 3. 配置 suno-api
