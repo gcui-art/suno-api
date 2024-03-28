@@ -3,6 +3,7 @@ import UserAgent from 'user-agents';
 import pino from 'pino';
 import { wrapper } from "axios-cookiejar-support";
 import { CookieJar } from "tough-cookie";
+import { sleep } from "@/lib/utils";
 
 const logger = pino();
 
@@ -22,24 +23,6 @@ export interface AudioInfo {
   type?: string;
   tags?: string;
   duration?: string;
-}
-
-/**
- * 暂停指定的秒数。
- * @param x 最小秒数。
- * @param y 最大秒数（可选）。
- */
-const sleep = (x: number, y?: number): Promise<void> => {
-  let timeout = x * 1000;
-  if (y !== undefined && y !== x) {
-    const min = Math.min(x, y);
-    const max = Math.max(x, y);
-    timeout = Math.floor(Math.random() * (max - min + 1) + min) * 1000;
-  }
-  // console.log(`Sleeping for ${timeout / 1000} seconds`);
-  logger.info(`Sleeping for ${timeout / 1000} seconds`);
-
-  return new Promise(resolve => setTimeout(resolve, timeout));
 }
 
 class SunoApi {
@@ -247,9 +230,7 @@ class SunoApi {
 
     // Reassemble the processed lyrics lines into a single string, separated by newlines between each line.
     // Additional formatting logic can be added here, such as adding specific markers or handling special lines.
-    const formattedLyrics = lines.join('\n');
-
-    return formattedLyrics;
+    return lines.join('\n');
   }
 
   /**
@@ -300,8 +281,7 @@ class SunoApi {
 
 const newSunoApi = async (cookie: string) => {
   const sunoApi = new SunoApi(cookie);
-  await sunoApi.init();
-  return sunoApi;
+  return await sunoApi.init();
 }
 
 export const sunoApi = newSunoApi(process.env.SUNO_COOKIE || '');
