@@ -134,8 +134,6 @@ LGPL-3.0 or later
 ## Contact Us
 
 - Contact us: <support@gcui.art>
-- Join our [Discord](https://...)
-- Follow us on Twitter: [@gcui](https://twitter.com/gcui_art)
 
 ## Related Links
 

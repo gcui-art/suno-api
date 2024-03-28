@@ -131,8 +131,6 @@ LGPL-3.0 或更高版本
 ## 联系方式
 
 - 联系我们：<support@gcui.art>
-- 加入我们的 [Discord](https://...)
-- 在 twitter 上关注我们: [@gcui](https://twitter.com/...)
 
 ## 相关链接
 
