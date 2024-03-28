@@ -18,6 +18,7 @@
     "axios": "^1.6.8",
     "next": "14.1.4",
     "pino": "^8.19.0",
+    "pino-pretty": "^11.0.0",
     "react": "^18",
     "react-dom": "^18",
     "user-agents": "^1.1.156"

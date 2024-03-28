@@ -1,6 +1,7 @@
 import axios from 'axios';
 import UserAgent from 'user-agents';
-
+import pino from 'pino';
+const logger = pino();
 
 
 interface AudioInfo {
@@ -31,7 +32,9 @@ const sleep = (x: number, y?: number): Promise<void> => {
     const max = Math.max(x, y);
     timeout = Math.floor(Math.random() * (max - min + 1) + min) * 1000;
   }
-  console.log(`Sleeping for ${timeout / 1000} seconds`);
+  // console.log(`Sleeping for ${timeout / 1000} seconds`);
+  logger.info(`Sleeping for ${timeout / 1000} seconds`);
+
   return new Promise(resolve => setTimeout(resolve, timeout));
 }
 
@@ -60,14 +63,10 @@ class SunoApi {
     if (!sid) {
       throw new Error("Failed to get session id");
     }
-    console.log(`Successfully retrieved session ID: ${sid}`);
     SunoApi.sid = sid; // 保存会话ID以备后用
 
     // 使用会话ID获取JWT令牌
     const exchangeTokenUrl = exchangeTokenUrlTemplate.replace('{sid}', sid);
-    // console.log("Exchange Token URL:\n", exchangeTokenUrl);
-    // console.log("Exchange User-Agent:\n", SunoApi.userAgent);
-    // console.log("Exchange Cookie:\n", SunoApi.cookie);
     const tokenResponse = await axios.post(
       exchangeTokenUrl,
       {},
@@ -78,8 +77,6 @@ class SunoApi {
         },
       },
     );
-    console.log("Token Response:\n", JSON.stringify(tokenResponse.data, null, 2));
-
     return tokenResponse.data.jwt;
   }
   public static async KeepAlive(): Promise<void> {
@@ -99,7 +96,7 @@ class SunoApi {
         },
       },
     );
-    console.log("Renew Response:\n", JSON.stringify(renewResponse.data, null, 2));
+    logger.info("KeepAlive...\n");
     await sleep(1, 2);
     const newToken = renewResponse.data.jwt;
     // 更新请求头中的Authorization字段，使用新的JWT令牌
@@ -111,12 +108,24 @@ class SunoApi {
     make_instrumental: boolean = false,
     wait_audio: boolean = false,
   ): Promise<AudioInfo[]> {
-
+    const startTime = Date.now();
     const audios = this.generateSongs(prompt, false, undefined, undefined, make_instrumental, wait_audio);
-    console.log("Custom Generate Response:\n", JSON.stringify(audios, null, 2));
+    const costTime = Date.now() - startTime;
+    logger.info("Generate Response:\n", JSON.stringify(audios, null, 2));
+    logger.info("Cost time: ", costTime);
     return audios;
   }
 
+  /**
+   * Generates custom audio based on provided parameters.
+   * 
+   * @param prompt The text prompt to generate audio from.
+   * @param tags Tags to categorize the generated audio.
+   * @param title The title for the generated audio.
+   * @param make_instrumental Indicates if the generated audio should be instrumental.
+   * @param wait_audio Indicates if the method should wait for the audio file to be fully generated before returning.
+   * @returns A promise that resolves to an array of AudioInfo objects representing the generated audios.
+   */
   public static async custom_generate(
     prompt: string,
     tags: string,
@@ -124,12 +133,25 @@ class SunoApi {
     make_instrumental: boolean = false,
     wait_audio: boolean = false,
   ): Promise<AudioInfo[]> {
-
+    const startTime = Date.now();
     const audios = await this.generateSongs(prompt, true, tags, title, make_instrumental, wait_audio);
-    console.log("Custom Generate Response:\n", JSON.stringify(audios, null, 2));
+    const costTime = Date.now() - startTime;
+    logger.info("Custom Generate Response:\n", JSON.stringify(audios, null, 2));
+    logger.info("Cost time: ", costTime);
     return audios;
   }
 
+  /**
+   * Generates songs based on the provided parameters.
+   * 
+   * @param prompt The text prompt to generate songs from.
+   * @param isCustom Indicates if the generation should consider custom parameters like tags and title.
+   * @param tags Optional tags to categorize the song, used only if isCustom is true.
+   * @param title Optional title for the song, used only if isCustom is true.
+   * @param make_instrumental Indicates if the generated song should be instrumental.
+   * @param wait_audio Indicates if the method should wait for the audio file to be fully generated before returning.
+   * @returns A promise that resolves to an array of AudioInfo objects representing the generated songs.
+   */
   private static async generateSongs(
     prompt: string,
     isCustom: boolean,
@@ -151,7 +173,7 @@ class SunoApi {
     } else {
       payload.gpt_description_prompt = prompt;
     }
-    console.log("generateSongs payload:\n", {
+    logger.info("generateSongs payload:\n", {
       prompt: prompt,
       isCustom: isCustom,
       tags: tags,
@@ -171,7 +193,7 @@ class SunoApi {
         timeout: 10000, // 10 seconds timeout
       },
     );
-    console.log("generateSongs Response:\n", JSON.stringify(response.data, null, 2));
+    logger.info("generateSongs Response:\n", JSON.stringify(response.data, null, 2));
     if (response.status !== 200) {
       throw new Error("Error response:" + response.statusText);
     }
@@ -180,10 +202,9 @@ class SunoApi {
     if (wait_audio === true) {
       const startTime = Date.now();
       let lastResponse: AudioInfo[] = [];
-      await sleep(2, 4);
-      while (Date.now() - startTime < 30000) {
+      await sleep(5, 5);
+      while (Date.now() - startTime < 100000) {
         const response = await SunoApi.get(songIds);
-        console.log("Waiting for audio Response:\n", JSON.stringify(response, null, 2));
         const allCompleted = response.every(
           audio => audio.status === 'streaming' || audio.status === 'complete'
         );
@@ -191,7 +212,7 @@ class SunoApi {
           return response;
         }
         lastResponse = response;
-        await sleep(2, 4);
+        await sleep(3, 6);
         this.KeepAlive();
       }
       return lastResponse;
@@ -216,32 +237,38 @@ class SunoApi {
     }
   }
   /**
-     * 将音频元数据中的歌词（prompt）处理成易于阅读的格式。
-     * @param prompt 原始歌词文本。
-     * @returns 处理后的歌词文本。
+     * Processes the lyrics (prompt) from the audio metadata into a more readable format.
+     * @param prompt The original lyrics text.
+     * @returns The processed lyrics text.
      */
   private static parseLyrics(prompt: string): string {
-    // 假设原始歌词是以特定分隔符（例如，换行符）分隔的，我们可以将其转换为更易于阅读的格式。
-    // 这里的实现可以根据实际的歌词格式进行调整。
-    // 例如，如果歌词是以连续的文本形式存在，可能需要根据特定的标记（如句号、逗号等）来分割。
-    // 下面的实现假设歌词已经是以换行符分隔的。
+    // Assuming the original lyrics are separated by a specific delimiter (e.g., newline), we can convert it into a more readable format.
+    // The implementation here can be adjusted according to the actual lyrics format.
+    // For example, if the lyrics exist as continuous text, it might be necessary to split them based on specific markers (such as periods, commas, etc.).
+    // The following implementation assumes that the lyrics are already separated by newlines.
 
-    // 使用换行符分割歌词，并确保移除空行。
+    // Split the lyrics using newline and ensure to remove empty lines.
     const lines = prompt.split('\n').filter(line => line.trim() !== '');
 
-    // 将处理后的歌词行重新组合成一个字符串，每行之间用换行符分隔。
-    // 可以在这里添加额外的格式化逻辑，如添加特定的标记或者处理特殊的行。
+    // Reassemble the processed lyrics lines into a single string, separated by newlines between each line.
+    // Additional formatting logic can be added here, such as adding specific markers or handling special lines.
     const formattedLyrics = lines.join('\n');
 
     return formattedLyrics;
   }
+
+  /**
+   * Retrieves audio information for the given song IDs.
+   * @param songIds An optional array of song IDs to retrieve information for.
+   * @returns A promise that resolves to an array of AudioInfo objects.
+   */
   public static async get(songIds?: string[]): Promise<AudioInfo[]> {
     const authToken = await this.getAuthToken();
     let url = `${SunoApi.baseUrl}/api/feed/`;
     if (songIds) {
       url = `${url}?ids=${songIds.join(',')}`;
     }
-    console.log("Get URL:\n", url);
+    logger.info("Get audio status: ", url);
     const response = await axios.get(url, {
       headers: {
         'Authorization': `Bearer ${authToken}`,
@@ -251,7 +278,6 @@ class SunoApi {
     });
 
     const audios = response.data;
-    console.log("Get Response:\n", JSON.stringify(audios, null, 2));
     return audios.map((audio: any) => ({
       id: audio.id,
       title: audio.title,
@@ -270,7 +296,7 @@ class SunoApi {
     }));
   }
 
-  public static async get_limit(): Promise<number> {
+  public static async get_credits(): Promise<object> {
     const authToken = await this.getAuthToken();
     const response = await axios.get(`${SunoApi.baseUrl}/api/billing/info/`, {
       headers: {
@@ -278,7 +304,12 @@ class SunoApi {
         'User-Agent': SunoApi.userAgent,
       },
     });
-    return response.data.total_credits_left;
+    return {
+      credits_left: response.data.total_credits_left,
+      period: response.data.period,
+      monthly_limit: response.data.monthly_limit,
+      monthly_usage: response.data.monthly_usage,
+    };
   }
 }
 

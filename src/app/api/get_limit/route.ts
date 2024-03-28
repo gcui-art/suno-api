@@ -5,10 +5,10 @@ export async function GET(req: NextRequest) {
     if (req.method === 'GET') {
         try {
             // 调用 SunoApi.get_limit 方法获取剩余的信用额度
-            const limit = await SunoApi.get_limit();
+            const limit = await SunoApi.get_credits();
 
             // 使用 NextResponse 构建成功响应
-            return new NextResponse(JSON.stringify({ limit }), {
+            return new NextResponse(JSON.stringify(limit), {
                 status: 200,
                 headers: { 'Content-Type': 'application/json' }
             });
