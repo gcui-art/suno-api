@@ -13,6 +13,8 @@ Suno.ai v3 is an amazing AI music service. Although the official API is not yet 
 
 We discovered that some users have similar needs, so we decided to open-source this project, hoping you'll like it.
 
+👉 We update quickly, please Star us on Github:  [github.com/gcui-art/suno-api](https://github.com/gcui-art/suno-api)
+
 ## Features
 
 - Perfectly implements the creation API from \`app.suno.ai\`
@@ -29,7 +31,7 @@ We discovered that some users have similar needs, so we decided to open-source t
 2. Open up the browser console: hit \`F12\` or access the \`Developer Tools\`.
 3. Navigate to the \`Network tab\`.
 4. Give the page a quick refresh.
-5. Identify the request that includes the keyword \`client?\_clerk_js_version\`.
+5. Identify the request that includes the keyword \`client?_clerk_js_version\`.
 6. Click on it and switch over to the \`Header\` tab.
 7. Locate the \`Cookie\` section, hover your mouse over it, and copy the value of the Cookie.
 `;
@@ -42,7 +44,7 @@ You can choose your preferred deployment method:
 
 #### Deploy to Vercel
 
-[button]
+[![Deploy with Vercel](https://vercel.com/button)](https://vercel.com/new/clone?repository-url=https%3A%2F%2Fgithub.com%2Fgcui-art%2Fsuno-api&env=SUNO_COOKIE&project-name=suno-api&repository-name=suno-api)
 
 #### Run locally
 
@@ -62,7 +64,7 @@ npm install
 SUNO_COOKIE=<your-cookie>
 \`\`\`
 
-### 4. Run suno api
+### 4. Run suno-api
 
 - If you’ve deployed to Vercel:
   - Please click on Deploy in the Vercel dashboard and wait for the deployment to be successful.
@@ -85,7 +87,7 @@ it means the program is running normally.
 
 ### 5. Use Suno API
 
-You can check out the detailed API documentation at \`https://<domain>/docs\`.
+You can check out the detailed API documentation at [suno-api.vercel.app/docs](https://suno-api.vercel.app/docs).
 
 ## API Reference
 
@@ -100,7 +102,8 @@ Suno API currently mainly implements the following APIs:
 \`\`\`
 
 For more detailed documentation, please check out the demo site:
-[https://.../docs](https://.../docs)
+
+👉 [suno-api.vercel.app/docs](https://suno-api.vercel.app/docs)
 
 `;
   return (

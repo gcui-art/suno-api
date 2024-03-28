@@ -6,7 +6,7 @@
 
 Use API to call the music generation service of Suno.ai and easily integrate it into agents like GPTs.
 
-👉 We update quickly, please star.
+👉 We update quickly, please Star us.
 
 ## Introduction
 
