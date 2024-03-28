@@ -31,6 +31,7 @@ class SunoApi {
 
   private readonly client: AxiosInstance;
   private sid?: string;
+  private currentToken?: string;
 
   constructor(cookie: string) {
     const cookieJar = new CookieJar();
@@ -43,6 +44,12 @@ class SunoApi {
         'Cookie': cookie
       }
     }))
+    this.client.interceptors.request.use((config) => {
+      if (this.currentToken) { // 使用当前token的状态
+        config.headers['Authorization'] = `Bearer ${this.currentToken}`;
+      }
+      return config;
+    });
   }
 
   public async init(): Promise<SunoApi> {
@@ -78,11 +85,9 @@ class SunoApi {
       await sleep(1, 2);
     }
     const newToken = renewResponse.data['jwt'];
+    console.log("newToken:===\n\n", newToken);
     // 更新请求头中的Authorization字段，使用新的JWT令牌
-    this.client.interceptors.request.use(function (config) {
-      config.headers['Authorization'] = `Bearer ${newToken}`
-      return config;
-    })
+    this.currentToken = newToken;
   }
 
   public async generate(
