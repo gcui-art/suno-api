@@ -6,6 +6,8 @@
 
 Use API to call the music generation service of Suno.ai and easily integrate it into agents like GPTs.
 
+👉 We update quickly, please star.
+
 ## Introduction
 
 Suno.ai v3 is an amazing AI music service. Although the official API is not yet available, we couldn't wait to integrate its capabilities somewhere.
