@@ -116,7 +116,6 @@ class SunoApi {
     make_instrumental: boolean = false,
     wait_audio: boolean = false,
   ): Promise<AudioInfo[]> {
-    await this.keepAlive(false);
     const startTime = Date.now();
     const audios = await this.generateSongs(prompt, true, tags, title, make_instrumental, wait_audio);
     const costTime = Date.now() - startTime;
