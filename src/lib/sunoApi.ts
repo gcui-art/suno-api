@@ -111,8 +111,8 @@ class SunoApi {
     const startTime = Date.now();
     const audios = this.generateSongs(prompt, false, undefined, undefined, make_instrumental, wait_audio);
     const costTime = Date.now() - startTime;
-    logger.info("Generate Response:\n", JSON.stringify(audios, null, 2));
-    logger.info("Cost time: ", costTime);
+    logger.info("Generate Response:\n" + JSON.stringify(audios, null, 2));
+    logger.info("Cost time: " + costTime);
     return audios;
   }
 
@@ -136,8 +136,8 @@ class SunoApi {
     const startTime = Date.now();
     const audios = await this.generateSongs(prompt, true, tags, title, make_instrumental, wait_audio);
     const costTime = Date.now() - startTime;
-    logger.info("Custom Generate Response:\n", JSON.stringify(audios, null, 2));
-    logger.info("Cost time: ", costTime);
+    logger.info("Custom Generate Response:\n" + JSON.stringify(audios, null, 2));
+    logger.info("Cost time: " + costTime);
     return audios;
   }
 
@@ -173,7 +173,7 @@ class SunoApi {
     } else {
       payload.gpt_description_prompt = prompt;
     }
-    logger.info("generateSongs payload:\n", {
+    logger.info("generateSongs payload:\n" + JSON.stringify({
       prompt: prompt,
       isCustom: isCustom,
       tags: tags,
@@ -181,7 +181,7 @@ class SunoApi {
       make_instrumental: make_instrumental,
       wait_audio: wait_audio,
       payload: payload,
-    });
+    }, null, 2));
     const response = await axios.post(
       `${SunoApi.baseUrl}/api/generate/v2/`,
       payload,
@@ -193,7 +193,7 @@ class SunoApi {
         timeout: 10000, // 10 seconds timeout
       },
     );
-    logger.info("generateSongs Response:\n", JSON.stringify(response.data, null, 2));
+    logger.info("generateSongs Response:\n" + JSON.stringify(response.data, null, 2));
     if (response.status !== 200) {
       throw new Error("Error response:" + response.statusText);
     }
@@ -268,7 +268,7 @@ class SunoApi {
     if (songIds) {
       url = `${url}?ids=${songIds.join(',')}`;
     }
-    logger.info("Get audio status: ", url);
+    logger.info("Get audio status: " + url);
     const response = await axios.get(url, {
       headers: {
         'Authorization': `Bearer ${authToken}`,
