@@ -1,6 +1,9 @@
-import axios from 'axios';
+import axios, { AxiosInstance } from 'axios';
 import UserAgent from 'user-agents';
 import pino from 'pino';
+import { wrapper } from "axios-cookiejar-support";
+import { CookieJar } from "tough-cookie";
+
 const logger = pino();
 
 
@@ -20,6 +23,7 @@ interface AudioInfo {
   tags?: string;
   duration?: string;
 }
+
 /**
  * 暂停指定的秒数。
  * @param x 最小秒数。
@@ -39,71 +43,75 @@ const sleep = (x: number, y?: number): Promise<void> => {
 }
 
 class SunoApi {
-  private static baseUrl: string = 'https://studio-api.suno.ai';
-  private static clerkBaseUrl: string = 'https://clerk.suno.ai';
-  private static cookie: string = process.env.SUNO_COOKIE || '';
-  private static userAgent: string = new UserAgent().toString();
-  private static sid: string | null = null;
+  private static BASE_URL: string = 'https://studio-api.suno.ai';
+  private static CLERK_BASE_URL: string = 'https://clerk.suno.ai';
 
-  private static async getAuthToken(): Promise<string> {
+  private readonly client: AxiosInstance;
+  private sid?: string;
 
+  constructor(cookie: string) {
+    const cookieJar = new CookieJar();
+    const randomUserAgent = new UserAgent(/Chrome/).random().toString();
+    this.client = wrapper(axios.create({
+      jar: cookieJar,
+      withCredentials: true,
+      headers: {
+        'User-Agent': randomUserAgent,
+        'Cookie': cookie
+      }
+    }))
+  }
+
+  public async init(): Promise<SunoApi> {
+    const token = await this.getAuthToken();
+    this.client.interceptors.request.use(function (config) {
+      config.headers['Authorization'] = `Bearer ${token}`
+      return config;
+    })
+    return this;
+  }
+
+
+  private async getAuthToken(): Promise<string> {
     // 获取会话ID的URL
-    const getSessionUrl = `${SunoApi.clerkBaseUrl}/v1/client?_clerk_js_version=4.70.5`;
+    const getSessionUrl = `${SunoApi.CLERK_BASE_URL}/v1/client?_clerk_js_version=4.70.5`;
     // 交换令牌的URL模板
-    const exchangeTokenUrlTemplate = `${SunoApi.clerkBaseUrl}/v1/client/sessions/{sid}/tokens/api?_clerk_js_version=4.70.0`;
+    const exchangeTokenUrlTemplate = `${SunoApi.CLERK_BASE_URL}/v1/client/sessions/{sid}/tokens/api?_clerk_js_version=4.70.0`;
 
     // 获取会话ID
-    const sessionResponse = await axios.get(getSessionUrl, {
-      headers: {
-        'User-Agent': SunoApi.userAgent,
-        'Cookie': SunoApi.cookie,
-      },
-    });
-    const sid = sessionResponse.data.response?.last_active_session_id;
+    const sessionResponse = await this.client.get(getSessionUrl);
+    const sid = sessionResponse.data.response['last_active_session_id'];
     if (!sid) {
       throw new Error("Failed to get session id");
     }
-    SunoApi.sid = sid; // 保存会话ID以备后用
+    // 保存会话ID以备后用
+    this.sid = sid;
 
     // 使用会话ID获取JWT令牌
     const exchangeTokenUrl = exchangeTokenUrlTemplate.replace('{sid}', sid);
-    const tokenResponse = await axios.post(
-      exchangeTokenUrl,
-      {},
-      {
-        headers: {
-          'User-Agent': SunoApi.userAgent,
-          'Cookie': SunoApi.cookie,
-        },
-      },
-    );
-    return tokenResponse.data.jwt;
+    const tokenResponse = await this.client.post(exchangeTokenUrl);
+    return tokenResponse.data['jwt'];
   }
-  public static async KeepAlive(): Promise<void> {
-    if (!SunoApi.sid) {
+
+  public async KeepAlive(): Promise<void> {
+    if (!this.sid) {
       throw new Error("Session ID is not set. Cannot renew token.");
     }
     // 续订会话令牌的URL
-    const renewUrl = `${SunoApi.clerkBaseUrl}/v1/client/sessions/${SunoApi.sid}/tokens/api?_clerk_js_version=4.70.0`;
+    const renewUrl = `${SunoApi.CLERK_BASE_URL}/v1/client/sessions/${this.sid}/tokens/api?_clerk_js_version=4.70.0`;
     // 续订会话令牌
-    const renewResponse = await axios.post(
-      renewUrl,
-      {},
-      {
-        headers: {
-          'User-Agent': SunoApi.userAgent,
-          'Cookie': SunoApi.cookie,
-        },
-      },
-    );
+    const renewResponse = await this.client.post(renewUrl);
     logger.info("KeepAlive...\n");
     await sleep(1, 2);
-    const newToken = renewResponse.data.jwt;
+    const newToken = renewResponse.data['jwt'];
     // 更新请求头中的Authorization字段，使用新的JWT令牌
-    axios.defaults.headers.common['Authorization'] = `Bearer ${newToken}`;
+    this.client.interceptors.request.use(function (config) {
+      config.headers['Authorization'] = `Bearer ${newToken}`
+      return config;
+    })
   }
 
-  public static async generate(
+  public async generate(
     prompt: string,
     make_instrumental: boolean = false,
     wait_audio: boolean = false,
@@ -118,7 +126,7 @@ class SunoApi {
 
   /**
    * Generates custom audio based on provided parameters.
-   * 
+   *
    * @param prompt The text prompt to generate audio from.
    * @param tags Tags to categorize the generated audio.
    * @param title The title for the generated audio.
@@ -126,7 +134,7 @@ class SunoApi {
    * @param wait_audio Indicates if the method should wait for the audio file to be fully generated before returning.
    * @returns A promise that resolves to an array of AudioInfo objects representing the generated audios.
    */
-  public static async custom_generate(
+  public async custom_generate(
     prompt: string,
     tags: string,
     title: string,
@@ -143,7 +151,7 @@ class SunoApi {
 
   /**
    * Generates songs based on the provided parameters.
-   * 
+   *
    * @param prompt The text prompt to generate songs from.
    * @param isCustom Indicates if the generation should consider custom parameters like tags and title.
    * @param tags Optional tags to categorize the song, used only if isCustom is true.
@@ -152,7 +160,7 @@ class SunoApi {
    * @param wait_audio Indicates if the method should wait for the audio file to be fully generated before returning.
    * @returns A promise that resolves to an array of AudioInfo objects representing the generated songs.
    */
-  private static async generateSongs(
+  private async generateSongs(
     prompt: string,
     isCustom: boolean,
     tags?: string,
@@ -182,14 +190,10 @@ class SunoApi {
       wait_audio: wait_audio,
       payload: payload,
     });
-    const response = await axios.post(
-      `${SunoApi.baseUrl}/api/generate/v2/`,
+    const response = await this.client.post(
+      `${SunoApi.BASE_URL}/api/generate/v2/`,
       payload,
       {
-        headers: {
-          'Authorization': `Bearer ${authToken}`,
-          'User-Agent': SunoApi.userAgent,
-        },
         timeout: 10000, // 10 seconds timeout
       },
     );
@@ -197,14 +201,14 @@ class SunoApi {
     if (response.status !== 200) {
       throw new Error("Error response:" + response.statusText);
     }
-    const songIds = response.data.clips.map((audio: any) => audio.id);
+    const songIds = response.data['clips'].map((audio: any) => audio.id);
     //Want to wait for music file generation
-    if (wait_audio === true) {
+    if (wait_audio) {
       const startTime = Date.now();
       let lastResponse: AudioInfo[] = [];
       await sleep(5, 5);
       while (Date.now() - startTime < 100000) {
-        const response = await SunoApi.get(songIds);
+        const response = await this.get(songIds);
         const allCompleted = response.every(
           audio => audio.status === 'streaming' || audio.status === 'complete'
         );
@@ -213,12 +217,12 @@ class SunoApi {
         }
         lastResponse = response;
         await sleep(3, 6);
-        this.KeepAlive();
+        await this.KeepAlive();
       }
       return lastResponse;
     } else {
-      this.KeepAlive();
-      return response.data.clips.map((audio: any) => ({
+      await this.KeepAlive();
+      return response.data['clips'].map((audio: any) => ({
         id: audio.id,
         title: audio.title,
         image_url: audio.image_url,
@@ -236,12 +240,13 @@ class SunoApi {
       }));
     }
   }
+
   /**
-     * Processes the lyrics (prompt) from the audio metadata into a more readable format.
-     * @param prompt The original lyrics text.
-     * @returns The processed lyrics text.
-     */
-  private static parseLyrics(prompt: string): string {
+   * Processes the lyrics (prompt) from the audio metadata into a more readable format.
+   * @param prompt The original lyrics text.
+   * @returns The processed lyrics text.
+   */
+  private parseLyrics(prompt: string): string {
     // Assuming the original lyrics are separated by a specific delimiter (e.g., newline), we can convert it into a more readable format.
     // The implementation here can be adjusted according to the actual lyrics format.
     // For example, if the lyrics exist as continuous text, it might be necessary to split them based on specific markers (such as periods, commas, etc.).
@@ -262,19 +267,16 @@ class SunoApi {
    * @param songIds An optional array of song IDs to retrieve information for.
    * @returns A promise that resolves to an array of AudioInfo objects.
    */
-  public static async get(songIds?: string[]): Promise<AudioInfo[]> {
+  public async get(songIds?: string[]): Promise<AudioInfo[]> {
     const authToken = await this.getAuthToken();
-    let url = `${SunoApi.baseUrl}/api/feed/`;
+    let url = `${SunoApi.BASE_URL}/api/feed/`;
     if (songIds) {
       url = `${url}?ids=${songIds.join(',')}`;
     }
     logger.info("Get audio status: ", url);
-    const response = await axios.get(url, {
-      headers: {
-        'Authorization': `Bearer ${authToken}`,
-        'User-Agent': SunoApi.userAgent,
-      },
-      timeout: 3000, // 3 seconds timeout
+    const response = await this.client.get(url, {
+      // 3 seconds timeout
+      timeout: 3000
     });
 
     const audios = response.data;
@@ -296,14 +298,9 @@ class SunoApi {
     }));
   }
 
-  public static async get_credits(): Promise<object> {
+  public async get_credits(): Promise<object> {
     const authToken = await this.getAuthToken();
-    const response = await axios.get(`${SunoApi.baseUrl}/api/billing/info/`, {
-      headers: {
-        'Authorization': `Bearer ${authToken}`,
-        'User-Agent': SunoApi.userAgent,
-      },
-    });
+    const response = await this.client.get(`${SunoApi.BASE_URL}/api/billing/info/`);
     return {
       credits_left: response.data.total_credits_left,
       period: response.data.period,
@@ -313,4 +310,10 @@ class SunoApi {
   }
 }
 
-export default SunoApi;
+const newSunoApi = async (cookie: string) => {
+  const sunoApi = new SunoApi(cookie);
+  await sunoApi.init();
+  return sunoApi;
+}
+
+export const sunoApi = newSunoApi(process.env.SUNO_COOKIE || '');
