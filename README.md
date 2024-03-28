@@ -17,7 +17,7 @@ We discovered that some users have similar needs, so we decided to open-source t
 ## Demo
 
 We have deployed an example bound to a free Suno account, so it has daily usage limits, but you can see how it runs:
-[https://...](https://...)
+[suno-api.vercel.app](https://suno-api.vercel.app)
 
 ## Features
 
@@ -47,7 +47,7 @@ You can choose your preferred deployment method:
 
 #### Deploy to Vercel
 
-[button]
+[![Deploy with Vercel](https://vercel.com/button)](https://vercel.com/new/clone?repository-url=https%3A%2F%2Fgithub.com%2Fgcui-art%2Fsuno-api&env=SUNO_COOKIE&project-name=suno-api&repository-name=suno-api)
 
 #### Run locally
 
