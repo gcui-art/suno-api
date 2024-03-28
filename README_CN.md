@@ -4,7 +4,7 @@
 
 [English](./README.md) | [简体中文](./README_CN.md)
 
-用 API 调用 suno.ai 的音乐生成服务，并且可以轻松集成到 GPTs 等 agent 中。
+用 API 调用 suno.ai 的音乐生成AI，并且可以轻松集成到 GPTs 等 agent 中。
 
 ## 简介
 
