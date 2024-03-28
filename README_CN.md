@@ -33,7 +33,7 @@ Suno.ai v3 是一个令人惊叹的 AI 音乐服务，虽然官方还没有开�
 5. 点击并切换到 Header 标签
 6. 找到 Cookie，鼠标复制 Cookie 的值
 
-<video src="https://github.com/gcui-art/suno-api/blob/main/public/get-cookie-demo.mp4"></video>
+<video src="https://github.com/gcui-art/suno-api/blob/feature-SunoAPI-kane/public/get-cookie-demo.mp4"></video>
 
 ### 2. 克隆并部署本项目
 
