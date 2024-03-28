@@ -1,14 +1,13 @@
 import React from 'react';
-import Swagger from './Swagger';
+import Swagger from '../components/Swagger';
 import spec from './swagger-suno-api.json'; // 直接导入JSON文件
+import Section from '../components/Section';
 
 
-export default async function Docs() {
-    // const spec = await getApiDocs();
+export default function Docs() {
     return (
-        <main className="flex min-h-screen flex-col items-center p-24 bg-white">
-            
+        <Section className="">
             <Swagger spec={spec} />
-        </main>
+        </Section>
     );
 }
