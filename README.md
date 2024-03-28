@@ -1,6 +1,6 @@
 # Suno AI API
 
-![suno-api banner](https://github.com/gcui-art/suno-api/blob/feature-SunoAPI-kane/public/suno-banner.png)
+![suno-api banner](https://github.com/gcui-art/suno-api/blob/main/public/suno-banner.png)
 
 [English](./README.md) | [简体中文](./README_CN.md)
 
@@ -37,7 +37,7 @@ We have deployed an example bound to a free Suno account, so it has daily usage 
 6. Click on it and switch over to the `Header` tab.
 7. Locate the `Cookie` section, hover your mouse over it, and copy the value of the Cookie.
 
-![get cookie](https://github.com/gcui-art/suno-api/blob/feature-SunoAPI-kane/public/get-cookie-demo.gif)
+![get cookie](https://github.com/gcui-art/suno-api/blob/main/public/get-cookie-demo.gif)
 
 ### 2. Clone and deploy this project
 

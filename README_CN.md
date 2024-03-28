@@ -1,6 +1,6 @@
 # Suno AI API
 
-![suno-api banner](https://github.com/gcui-art/suno-api/blob/feature-SunoAPI-kane/public/suno-banner.png)
+![suno-api banner](https://github.com/gcui-art/suno-api/blob/main/public/suno-banner.png)
 
 [English](./README.md) | [简体中文](./README_CN.md)
 
@@ -36,7 +36,7 @@ Suno.ai v3 是一个令人惊叹的 AI 音乐服务，虽然官方还没有开�
 6. 点击并切换到 `Header` 标签
 7. 找到 `Cookie` 部分，鼠标复制 Cookie 的值
 
-![获取cookie](https://github.com/gcui-art/suno-api/blob/feature-SunoAPI-kane/public/get-cookie-demo.gif)
+![获取cookie](https://github.com/gcui-art/suno-api/blob/main/public/get-cookie-demo.gif)
 
 ### 2. 克隆并部署本项目
 
