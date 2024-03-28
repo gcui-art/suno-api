@@ -1,6 +1,6 @@
 import { NextResponse, NextRequest } from "next/server";
 import { sunoApi } from "@/lib/SunoApi";
-
+export const dynamic = "force-dynamic";
 export async function GET(req: NextRequest) {
   if (req.method === 'GET') {
     try {
