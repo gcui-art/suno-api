@@ -7,7 +7,7 @@ import { CookieJar } from "tough-cookie";
 const logger = pino();
 
 
-interface AudioInfo {
+export interface AudioInfo {
   id: string;
   title?: string;
   image_url?: string;
@@ -63,21 +63,15 @@ class SunoApi {
   }
 
   public async init(): Promise<SunoApi> {
-    const token = await this.getAuthToken();
-    this.client.interceptors.request.use(function (config) {
-      config.headers['Authorization'] = `Bearer ${token}`
-      return config;
-    })
+    await this.getAuthToken();
+    await this.keepAlive();
     return this;
   }
 
 
-  private async getAuthToken(): Promise<string> {
+  private async getAuthToken() {
     // 获取会话ID的URL
     const getSessionUrl = `${SunoApi.CLERK_BASE_URL}/v1/client?_clerk_js_version=4.70.5`;
-    // 交换令牌的URL模板
-    const exchangeTokenUrlTemplate = `${SunoApi.CLERK_BASE_URL}/v1/client/sessions/{sid}/tokens/api?_clerk_js_version=4.70.0`;
-
     // 获取会话ID
     const sessionResponse = await this.client.get(getSessionUrl);
     const sid = sessionResponse.data.response['last_active_session_id'];
@@ -86,14 +80,9 @@ class SunoApi {
     }
     // 保存会话ID以备后用
     this.sid = sid;
-
-    // 使用会话ID获取JWT令牌
-    const exchangeTokenUrl = exchangeTokenUrlTemplate.replace('{sid}', sid);
-    const tokenResponse = await this.client.post(exchangeTokenUrl);
-    return tokenResponse.data['jwt'];
   }
 
-  public async KeepAlive(): Promise<void> {
+  public async keepAlive(isWait?: boolean): Promise<void> {
     if (!this.sid) {
       throw new Error("Session ID is not set. Cannot renew token.");
     }
@@ -102,7 +91,9 @@ class SunoApi {
     // 续订会话令牌
     const renewResponse = await this.client.post(renewUrl);
     logger.info("KeepAlive...\n");
-    await sleep(1, 2);
+    if (isWait) {
+      await sleep(1, 2);
+    }
     const newToken = renewResponse.data['jwt'];
     // 更新请求头中的Authorization字段，使用新的JWT令牌
     this.client.interceptors.request.use(function (config) {
@@ -216,11 +207,11 @@ class SunoApi {
         }
         lastResponse = response;
         await sleep(3, 6);
-        await this.KeepAlive();
+        await this.keepAlive(true);
       }
       return lastResponse;
     } else {
-      await this.KeepAlive();
+      await this.keepAlive(true);
       return response.data['clips'].map((audio: any) => ({
         id: audio.id,
         title: audio.title,
