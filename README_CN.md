@@ -35,8 +35,6 @@ Suno.ai v3 是一个令人惊叹的 AI 音乐服务，虽然官方还没有开�
 
 ![获取cookie](https://github.com/gcui-art/suno-api/blob/feature-SunoAPI-kane/public/get-cookie-demo.gif)
 
-[![视频标题](缩略图链接)](https://github.com/gcui-art/suno-api/blob/feature-SunoAPI-kane/public/get-cookie-demo.mp4)
-
 ### 2. 克隆并部署本项目
 
 ### 3. 配置 suno-api
