@@ -168,7 +168,6 @@ class SunoApi {
     make_instrumental?: boolean,
     wait_audio: boolean = false
   ): Promise<AudioInfo[]> {
-    const authToken = await this.getAuthToken();
     const payload: any = {
       make_instrumental: make_instrumental == true,
       mv: "chirp-v3-0",
@@ -268,7 +267,6 @@ class SunoApi {
    * @returns A promise that resolves to an array of AudioInfo objects.
    */
   public async get(songIds?: string[]): Promise<AudioInfo[]> {
-    const authToken = await this.getAuthToken();
     let url = `${SunoApi.BASE_URL}/api/feed/`;
     if (songIds) {
       url = `${url}?ids=${songIds.join(',')}`;
@@ -299,7 +297,6 @@ class SunoApi {
   }
 
   public async get_credits(): Promise<object> {
-    const authToken = await this.getAuthToken();
     const response = await this.client.get(`${SunoApi.BASE_URL}/api/billing/info/`);
     return {
       credits_left: response.data.total_credits_left,
