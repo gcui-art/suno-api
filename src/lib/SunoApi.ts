@@ -90,6 +90,7 @@ class SunoApi {
     make_instrumental: boolean = false,
     wait_audio: boolean = false,
   ): Promise<AudioInfo[]> {
+    await this.keepAlive(false);
     const startTime = Date.now();
     const audios = this.generateSongs(prompt, false, undefined, undefined, make_instrumental, wait_audio);
     const costTime = Date.now() - startTime;
@@ -115,6 +116,7 @@ class SunoApi {
     make_instrumental: boolean = false,
     wait_audio: boolean = false,
   ): Promise<AudioInfo[]> {
+    await this.keepAlive(false);
     const startTime = Date.now();
     const audios = await this.generateSongs(prompt, true, tags, title, make_instrumental, wait_audio);
     const costTime = Date.now() - startTime;
@@ -142,6 +144,7 @@ class SunoApi {
     make_instrumental?: boolean,
     wait_audio: boolean = false
   ): Promise<AudioInfo[]> {
+    await this.keepAlive(false);
     const payload: any = {
       make_instrumental: make_instrumental == true,
       mv: "chirp-v3-0",
@@ -239,6 +242,7 @@ class SunoApi {
    * @returns A promise that resolves to an array of AudioInfo objects.
    */
   public async get(songIds?: string[]): Promise<AudioInfo[]> {
+    await this.keepAlive(false);
     let url = `${SunoApi.BASE_URL}/api/feed/`;
     if (songIds) {
       url = `${url}?ids=${songIds.join(',')}`;
@@ -269,6 +273,7 @@ class SunoApi {
   }
 
   public async get_credits(): Promise<object> {
+    await this.keepAlive(false);
     const response = await this.client.get(`${SunoApi.BASE_URL}/api/billing/info/`);
     return {
       credits_left: response.data.total_credits_left,
