@@ -5,6 +5,8 @@ import Markdown from 'react-markdown';
 export default function Home() {
 
   const markdown = `
+
+---
 ## Introduction
 
 Suno.ai v3 is an amazing AI music service. Although the official API is not yet available, we couldn't wait to integrate its capabilities somewhere.
@@ -35,19 +37,24 @@ We discovered that some users have similar needs, so we decided to open-source t
   return (
     <>
       <Section className="">
-        <div className="flex flex-col m-auto py-20 text-center items-center justify-center gap-4 bg-indigo-900/10 my-8 rounded-2xl border">
-          <span className=" px-5 py-1 text-xs font-light border rounded-full border-indigo-900 uppercase">Unofficial</span>
-          <h1 className="font-bold text-7xl flex text-indigo-900">
+        <div className="flex flex-col m-auto py-20 text-center items-center justify-center gap-4 my-8
+        lg:px-20 px-4
+        bg-indigo-900/90 rounded-2xl border shadow-2xl hover:shadow-none duration-200">
+          <span className=" px-5 py-1 text-xs font-light border rounded-full 
+          border-white/20 uppercase text-white/50">
+            Unofficial
+          </span>
+          <h1 className="font-bold text-7xl flex text-white/90">
             Suno AI API
           </h1>
-          <p className="text-indigo-900/80 text-lg">
-            Deploy your own Suno AI API with just one click.
+          <p className="text-white/80 text-lg">
+            `Suno-api` is an open-source project that enables you to set up your own Suno AI API.
           </p>
         </div>
 
       </Section>
       <Section className="my-10">
-        <article className="prose lg:prose-lg max-w-3xl border-t pt-10">
+        <article className="prose lg:prose-lg max-w-3xl">
           <Markdown>
             {markdown}
           </Markdown>

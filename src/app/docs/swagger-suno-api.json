@@ -14,7 +14,7 @@
     "/api/custom_generate": {
       "post": {
         "summary": "Generate Audio - Custom Mode",
-        "description": "The custom mode enables users to provide additional details about the music, such as music genre, lyrics, and more.2 audio files will be generated for each request, consuming a total of 10 credits.wait_audio can be set to API mode:\u2022 By default, it is set to false, which indicates the background mode. It will only return audio task information, and you will need to call the get API to retrieve detailed audio information.\u2022 If set to true, it simulates synchronous mode. The API will wait for a maximum of 100s until the audio is generated, and will directly return the audio link and other information. Recommend using in GPTs and other agents.",
+        "description": "The custom mode enables users to provide additional details about the music, such as music genre, lyrics, and more.\n\n 2 audio files will be generated for each request, consuming a total of 10 credits. \n\n `wait_audio` can be set to API mode:\n\n\u2022 By default, it is set to false, which indicates the background mode. It will only return audio task information, and you will need to call the get API to retrieve detailed audio information.\n\n\u2022 If set to true, it simulates synchronous mode. The API will wait for a maximum of 100s until the audio is generated, and will directly return the audio link and other information. Recommend using in GPTs and other agents.",
         "tags": ["default"],
         "requestBody": {
           "content": {
@@ -82,7 +82,7 @@
     "/api/generate": {
       "post": {
         "summary": "Generate audio based on Prompt.",
-        "description": "It will automatically fill in the lyrics.2 audio files will be generated for each request, consuming a total of 10 credits.wait_audio can be set to API mode:\u2022 By default, it is set to false, which indicates the background mode. It will only return audio task information, and you will need to call the get API to retrieve detailed audio information.\u2022 If set to true, it simulates synchronous mode. The API will wait for a maximum of 100s until the audio is generated, and will directly return the audio link and other information. Recommend using in GPTs and other agents.",
+        "description": "It will automatically fill in the lyrics.\n\n2 audio files will be generated for each request, consuming a total of 10 credits.\n\n`wait_audio` can be set to API mode:\n\n\u2022 By default, it is set to `false`, which indicates the background mode. It will only return audio task information, and you will need to call the get API to retrieve detailed audio information.\n\n\u2022 If set to `true`, it simulates synchronous mode. The API will wait for a maximum of 100s until the audio is generated, and will directly return the audio link and other information. Recommend using in GPTs and other agents.",
         "tags": ["default"],
         "requestBody": {
           "content": {
@@ -155,7 +155,26 @@
         ],
         "responses": {
           "200": {
-            "description": "success"
+            "description": "success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "required": ["0", "1"],
+                    "properties": [
+                      {
+                        "$ref": "#/components/schemas/audio_info"
+                      },
+                      {
+                        "$ref": "#/components/schemas/audio_info"
+                      }
+                    ]
+                  }
+                }
+              }
+            }
           }
         }
       }
