@@ -27,13 +27,66 @@ We have deployed an example bound to a free Suno account, so it has daily usage 
 
 ### 1. Obtain the cookie of your app.suno.ai account
 
+1. Head over to [app.suno.ai](https://app.suno.ai) using your browser.
+2. Open up the browser console: hit `F12` or access the `Developer Tools`.
+3. Navigate to the `Network tab`.
+4. Give the page a quick refresh.
+5. Identify the request that includes the keyword `client?\_clerk_js_version`.
+6. Click on it and switch over to the `Header` tab.
+7. Locate the `Cookie` section, hover your mouse over it, and copy the value of the Cookie.
+
+![get cookie](https://github.com/gcui-art/suno-api/blob/feature-SunoAPI-kane/public/get-cookie-demo.gif)
+
 ### 2. Clone and deploy this project
+
+You can choose your preferred deployment method:
+
+#### Deploy to Vercel
+
+[button]
+
+#### Run locally
+
+```bash
+git clone https://github.com/gcui-art/suno-api.git
+cd suno-api
+npm install
+```
 
 ### 3. Configure suno-api
 
+- If deployed to Vercel, please add an environment variable `SUNO_COOKIE` in the Vercel dashboard, with the value of the cookie obtained in the first step.
+
+- If you’re running this locally, be sure to add the following to your `.env` file:
+
+```bash
+SUNO_COOKIE=<your-cookie>
+```
+
 ### 4. Run suno api
 
-### 5. Create more freely
+- If you’ve deployed to Vercel:
+  - Please click on Deploy in the Vercel dashboard and wait for the deployment to be successful.
+  - Visit the `https://<vercel-assigned-domain>/api/get_limit` API for testing.
+- If running locally:
+  - Run `npm run dev`.
+  - Visit the `http://localhost:3000/api/get_limit` API for testing.
+- If the following result is returned:
+
+```json
+{
+  "credits_left": 50,
+  "period": "day",
+  "monthly_limit": 50,
+  "monthly_usage": 50
+}
+```
+
+it means the program is running normally.
+
+### 5. Use Suno API
+
+You can check out the detailed API documentation at `https://<domain>/docs`.
 
 ## API Reference
 
@@ -46,15 +99,24 @@ Suno API currently mainly implements the following APIs:
 - `/api/get_limit`: Get quota Info
 ```
 
+For more detailed documentation, please check out the demo site:
+[https://.../docs](https://.../docs)
+
 ## Integration with Custom Agents
+
+...
 
 ### Integration with GPTs
 
+...
+
 ### Integration with Coze
 
-### Integration with Dify
+...
 
 ## Contribution Guidelines
+
+Fork the project and submit a pull request.
 
 ## License
 
@@ -70,3 +132,7 @@ LGPL-3.0 or later
 
 - Project repository: [github.com/gcui-art/suno-api](https://github.com/gcui-art/suno-api)
 - Suno.ai official website: [suno.ai](https://suno.ai)
+
+## Statement
+
+suno-api is an unofficial open source project, intended for learning and research purposes only.
