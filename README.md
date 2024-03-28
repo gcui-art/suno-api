@@ -90,7 +90,8 @@ it means the program is running normally.
 
 ### 5. Use Suno API
 
-You can check out the detailed API documentation at `https://<domain>/docs`.
+You can check out the detailed API documentation at :
+[suno-api.vercel.app/docs](https://suno-api.vercel.app/docs)
 
 ## API Reference
 
@@ -104,19 +105,23 @@ Suno API currently mainly implements the following APIs:
 ```
 
 For more detailed documentation, please check out the demo site:
-[https://.../docs](https://.../docs)
+[suno-api.vercel.app/docs](https://suno-api.vercel.app/docs)
 
 ## Integration with Custom Agents
 
-...
+You can integrate Suno AI as a tool/plugin/action into your AI agent.
 
 ### Integration with GPTs
 
-...
+[coming soon...]
 
 ### Integration with Coze
 
-...
+[coming soon...]
+
+### Integration with LangChain
+
+[coming soon...]
 
 ## Contribution Guidelines
 

@@ -88,7 +88,7 @@ SUNO_COOKIE=<your-cookie>
 
 ### 5. 使用 Suno API
 
-你可以在 `<域名>/docs`查看详细的 API 文档。
+你可以在 [suno-api.vercel.app/docs](https://suno-api.vercel.app/docs)查看详细的 API 文档，并在线测试。
 
 ## API 说明
 
@@ -101,17 +101,24 @@ Suno API 目前主要实现了以下 API:
 - `/api/get_limit`: 获取配额信息
 ```
 
-详细文档请查看演示站点: [https://.../docs](https://.../docs)
+详细文档请查看演示站点:
+[suno-api.vercel.app/docs](https://suno-api.vercel.app/docs)
 
 ## 集成到到常见的自定义 Agent 中
 
+你可以把 suno ai 当做一个 工具/插件/Action 集成到你的 AI Agent 中。
+
 ### 集成到 GPTs
 
-...
+[coming soon...]
 
 ### 集成到 coze
 
-...
+[coming soon...]
+
+### 集成到 LangChain
+
+[coming soon...]
 
 ## 贡献指南
 
