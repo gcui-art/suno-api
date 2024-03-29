@@ -9,20 +9,20 @@ const logger = pino();
 
 
 export interface AudioInfo {
-  id: string;
-  title?: string;
-  image_url?: string;
-  lyric?: string;
-  audio_url?: string;
-  video_url?: string;
-  created_at: string;
-  model_name: string;
-  gpt_description_prompt?: string;
-  prompt?: string;
-  status: string;
-  type?: string;
-  tags?: string;
-  duration?: string;
+  id: string; // Unique identifier for the audio
+  title?: string; // Title of the audio
+  image_url?: string; // URL of the image associated with the audio
+  lyric?: string; // Lyrics of the audio
+  audio_url?: string; // URL of the audio file
+  video_url?: string; // URL of the video associated with the audio
+  created_at: string; // Date and time when the audio was created
+  model_name: string; // Name of the model used for audio generation
+  gpt_description_prompt?: string; // Prompt for GPT description
+  prompt?: string; // Prompt for audio generation
+  status: string; // Status
+  type?: string; 
+  tags?: string; // Genre of music.
+  duration?: string; // Duration of the audio
 }
 
 class SunoApi {
@@ -45,7 +45,7 @@ class SunoApi {
       }
     }))
     this.client.interceptors.request.use((config) => {
-      if (this.currentToken) { // 使用当前token的状态
+      if (this.currentToken) { // Use the current token status
         config.headers['Authorization'] = `Bearer ${this.currentToken}`;
       }
       return config;
@@ -58,27 +58,33 @@ class SunoApi {
     return this;
   }
 
-
+  /**
+   * Get the session ID and save it for later use.
+   */
   private async getAuthToken() {
-    // 获取会话ID的URL
+    // URL to get session ID
     const getSessionUrl = `${SunoApi.CLERK_BASE_URL}/v1/client?_clerk_js_version=4.70.5`;
-    // 获取会话ID
+    // Get session ID
     const sessionResponse = await this.client.get(getSessionUrl);
     const sid = sessionResponse.data.response['last_active_session_id'];
     if (!sid) {
       throw new Error("Failed to get session id");
     }
-    // 保存会话ID以备后用
+    // Save session ID for later use
     this.sid = sid;
   }
 
+  /**
+   * Keep the session alive.
+   * @param isWait Indicates if the method should wait for the session to be fully renewed before returning.
+   */
   public async keepAlive(isWait?: boolean): Promise<void> {
     if (!this.sid) {
       throw new Error("Session ID is not set. Cannot renew token.");
     }
-    // 续订会话令牌的URL
+    // URL to renew session token
     const renewUrl = `${SunoApi.CLERK_BASE_URL}/v1/client/sessions/${this.sid}/tokens/api?_clerk_js_version=4.70.0`;
-    // 续订会话令牌
+    // Renew session token
     const renewResponse = await this.client.post(renewUrl);
     logger.info("KeepAlive...\n");
     if (isWait) {
@@ -86,10 +92,17 @@ class SunoApi {
     }
     const newToken = renewResponse.data['jwt'];
     console.log("newToken:===\n\n", newToken);
-    // 更新请求头中的Authorization字段，使用新的JWT令牌
+    // Update Authorization field in request header with the new JWT token
     this.currentToken = newToken;
   }
 
+  /**
+   * Generate a song based on the prompt.
+   * @param prompt The text prompt to generate audio from.
+   * @param make_instrumental Indicates if the generated audio should be instrumental.
+   * @param wait_audio Indicates if the method should wait for the audio file to be fully generated before returning.
+   * @returns 
+   */
   public async generate(
     prompt: string,
     make_instrumental: boolean = false,

@@ -6,23 +6,17 @@ export async function POST(req: NextRequest) {
     try {
       const body = await req.json();
       const { prompt, tags, title, make_instrumental, wait_audio } = body;
-
-      // 校验输入参数
       if (!prompt || !tags || !title) {
         return new NextResponse(JSON.stringify({ error: 'Prompt, tags, and title are required' }), {
           status: 400,
           headers: { 'Content-Type': 'application/json' }
         });
       }
-
-      // 调用 SunoApi.custom_generate 方法生成定制音频
       const audioInfo = await (await sunoApi).custom_generate(
         prompt, tags, title,
         make_instrumental == true,
         wait_audio == true
       );
-
-      // 使用 NextResponse 构建成功响应
       return new NextResponse(JSON.stringify(audioInfo), {
         status: 200,
         headers: { 'Content-Type': 'application/json' }
@@ -35,7 +29,6 @@ export async function POST(req: NextRequest) {
           headers: { 'Content-Type': 'application/json' }
         });
       }
-      // 使用 NextResponse 构建错误响应
       return new NextResponse(JSON.stringify({ error: 'Internal server error' }), {
         status: 500,
         headers: { 'Content-Type': 'application/json' }

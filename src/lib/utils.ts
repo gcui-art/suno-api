@@ -3,9 +3,9 @@ import pino from "pino";
 const logger = pino();
 
 /**
- * 暂停指定的秒数。
- * @param x 最小秒数。
- * @param y 最大秒数（可选）。
+ * Pause for a specified number of seconds.
+ * @param x Minimum number of seconds.
+ * @param y Maximum number of seconds (optional).
  */
 export const sleep = (x: number, y?: number): Promise<void> => {
   let timeout = x * 1000;
