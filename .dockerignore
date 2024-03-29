@@ -37,3 +37,8 @@ yarn-error.log*
 next-env.d.ts
 
 .idea
+
+public/
+Dockerfile
+docker-compose.yml
+README*.md
