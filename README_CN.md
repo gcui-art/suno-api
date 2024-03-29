@@ -16,7 +16,7 @@ Suno.ai v3 是一个令人惊叹的 AI 音乐服务，虽然官方还没有开�
 ## Demo
 
 我们部署了一个示例，绑定了一个免费的 suno 账号，所以它每天有使用限制，但你可以看到它运行起来的样子：
-[suno-api.vercel.app](https://suno-api.vercel.app)
+[suno.gcui.art](https://suno.gcui.art)
 
 ## Features
 
@@ -88,7 +88,7 @@ SUNO_COOKIE=<your-cookie>
 
 ### 5. 使用 Suno API
 
-你可以在 [suno-api.vercel.app/docs](https://suno-api.vercel.app/docs)查看详细的 API 文档，并在线测试。
+你可以在 [suno.gcui.art](https://suno.gcui.art/docs)查看详细的 API 文档，并在线测试。
 
 ## API 说明
 
@@ -102,7 +102,7 @@ Suno API 目前主要实现了以下 API:
 ```
 
 详细文档请查看演示站点:
-[suno-api.vercel.app/docs](https://suno-api.vercel.app/docs)
+[suno.gcui.art/docs](https://suno.gcui.art/docs)
 
 ## 集成到到常见的自定义 Agent 中
 
@@ -136,6 +136,7 @@ LGPL-3.0 或更高版本
 
 - 项目仓库: [github.com/gcui-art/suno-api](https://github.com/gcui-art/suno-api)
 - Suno.ai 官网: [suno.ai](https://suno.ai)
+- 演示站点: [suno.gcui.art](https://suno.gcui.art)
 
 ## 声明
 

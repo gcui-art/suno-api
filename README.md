@@ -17,7 +17,7 @@ We discovered that some users have similar needs, so we decided to open-source t
 ## Demo
 
 We have deployed an example bound to a free Suno account, so it has daily usage limits, but you can see how it runs:
-[suno-api.vercel.app](https://suno-api.vercel.app)
+[suno.gcui.art](https://suno.gcui.art)
 
 ## Features
 
@@ -91,7 +91,7 @@ it means the program is running normally.
 ### 5. Use Suno API
 
 You can check out the detailed API documentation at :
-[suno-api.vercel.app/docs](https://suno-api.vercel.app/docs)
+[suno.gcui.art/docs](https://suno.gcui.art/docs)
 
 ## API Reference
 
@@ -105,7 +105,7 @@ Suno API currently mainly implements the following APIs:
 ```
 
 For more detailed documentation, please check out the demo site:
-[suno-api.vercel.app/docs](https://suno-api.vercel.app/docs)
+[suno.gcui.art/docs](https://suno.gcui.art/docs)
 
 ## Integration with Custom Agents
 
@@ -139,6 +139,7 @@ LGPL-3.0 or later
 
 - Project repository: [github.com/gcui-art/suno-api](https://github.com/gcui-art/suno-api)
 - Suno.ai official website: [suno.ai](https://suno.ai)
+- Demo: [suno.gcui.art](https://suno.gcui.art)
 
 ## Statement
 
