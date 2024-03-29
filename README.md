@@ -57,6 +57,12 @@ cd suno-api
 npm install
 ```
 
+Alternatively, you can use [Docker Compose](https://docs.docker.com/compose/)
+
+```bash
+docker compose build && docker compose up
+```
+
 ### 3. Configure suno-api
 
 - If deployed to Vercel, please add an environment variable `SUNO_COOKIE` in the Vercel dashboard, with the value of the cookie obtained in the first step.
