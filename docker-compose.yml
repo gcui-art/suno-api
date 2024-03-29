@@ -1,0 +1,9 @@
+version: '3'
+
+services:
+  suno-api:
+    build: .
+    volumes:
+      - ./public:/app/public
+    ports:
+      - "3000:3000"
