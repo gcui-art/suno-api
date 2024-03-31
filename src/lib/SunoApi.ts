@@ -20,7 +20,7 @@ export interface AudioInfo {
   gpt_description_prompt?: string; // Prompt for GPT description
   prompt?: string; // Prompt for audio generation
   status: string; // Status
-  type?: string; 
+  type?: string;
   tags?: string; // Genre of music.
   duration?: string; // Duration of the audio
 }
@@ -66,12 +66,11 @@ class SunoApi {
     const getSessionUrl = `${SunoApi.CLERK_BASE_URL}/v1/client?_clerk_js_version=4.70.5`;
     // Get session ID
     const sessionResponse = await this.client.get(getSessionUrl);
-    const sid = sessionResponse.data.response['last_active_session_id'];
-    if (!sid) {
-      throw new Error("Failed to get session id");
+    if (!sessionResponse?.data?.response?.['last_active_session_id']) {
+      throw new Error("Failed to get session id, you may need to update the SUNO_COOKIE");
     }
     // Save session ID for later use
-    this.sid = sid;
+    this.sid = sessionResponse.data.response['last_active_session_id'];
   }
 
   /**
@@ -233,6 +232,7 @@ class SunoApi {
       }));
     }
   }
+
 
   /**
    * Processes the lyrics (prompt) from the audio metadata into a more readable format.
