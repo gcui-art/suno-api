@@ -7,23 +7,24 @@ export default function Home() {
   const markdown = `
 
 ---
-## Introduction
+## 👋 Introduction
 
 Suno.ai v3 is an amazing AI music service. Although the official API is not yet available, we couldn't wait to integrate its capabilities somewhere.
 
 We discovered that some users have similar needs, so we decided to open-source this project, hoping you'll like it.
 
-👉 We update quickly, please Star us on Github:  [github.com/gcui-art/suno-api](https://github.com/gcui-art/suno-api)
+We update quickly, please star us on Github:  [github.com/gcui-art/suno-api](https://github.com/gcui-art/suno-api) ⭐
 
-## Features
+## 🌟 Features
 
 - Perfectly implements the creation API from \`app.suno.ai\`
+- Automatically keep the account active.
 - Supports \`Custom Mode\`
 - One-click deployment to Vercel
 - In addition to the standard API, it also adapts to the API Schema of Agent platforms like GPTs and Coze, so you can use it as a tool/plugin/Action for LLMs and integrate it into any AI Agent.
 - Permissive open-source license, allowing you to freely integrate and modify.
 
-## Getting Started
+## 🚀 Getting Started
 
 ### 1. Obtain the cookie of your app.suno.ai account
 
@@ -60,9 +61,9 @@ npm install
 
 - If you’re running this locally, be sure to add the following to your \`.env\` file:
 
-\`\`\`bash
-SUNO_COOKIE=<your-cookie>
-\`\`\`
+  \`\`\`bash
+  SUNO_COOKIE=<your-cookie>
+  \`\`\`
 
 ### 4. Run suno-api
 
@@ -74,14 +75,14 @@ SUNO_COOKIE=<your-cookie>
   - Visit the \`http://localhost:3000/api/get_limit\` API for testing.
 - If the following result is returned:
 
-\`\`\`json
-{
-  "credits_left": 50,
-  "period": "day",
-  "monthly_limit": 50,
-  "monthly_usage": 50
-}
-\`\`\`
+  \`\`\`json
+  {
+    "credits_left": 50,
+    "period": "day",
+    "monthly_limit": 50,
+    "monthly_usage": 50
+  }
+  \`\`\`
 
 it means the program is running normally.
 
@@ -89,7 +90,7 @@ it means the program is running normally.
 
 You can check out the detailed API documentation at [suno.gcui.art/docs](https://suno.gcui.art/docs).
 
-## API Reference
+## 📚 API Reference
 
 Suno API currently mainly implements the following APIs:
 
@@ -97,7 +98,9 @@ Suno API currently mainly implements the following APIs:
 - \`/api/generate\`: Generate music
 - \`/api/custom_generate\`: Generate music (Custom Mode, support setting lyrics, 
   music style, title, etc.)
-- \`/api/get\`: Get music Info
+- \`/api/generate_lyrics\`: Generate lyrics based on prompt
+- \`/api/get\`: Get music list
+- \`/api/get?ids=\`: Get music Info by id, separate multiple id with ",".
 - \`/api/get_limit\`: Get quota Info
 \`\`\`
 

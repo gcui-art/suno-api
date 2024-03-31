@@ -21,10 +21,13 @@ Suno API currently mainly implements the following APIs:
 \`\`\`bash
 - \`/api/generate\`: Generate music
 - \`/api/custom_generate\`: Generate music (Custom Mode, support setting lyrics, 
-    music style, title, etc.)
-- \`/api/get\`: Get music Info
+  music style, title, etc.)
+- \`/api/generate_lyrics\`: Generate lyrics based on prompt
+- \`/api/get\`: Get music information based on the id. Use “,” to separate multiple 
+    ids.  If no IDs are provided, all music will be returned.
 - \`/api/get_limit\`: Get quota Info
 \`\`\`
+
 Feel free to explore the detailed API parameters and conduct tests on this page. 
 
 > Please note: 

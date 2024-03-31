@@ -233,6 +233,27 @@ class SunoApi {
     }
   }
 
+  /**
+   * Generates lyrics based on a given prompt.
+   * @param prompt The prompt for generating lyrics.
+   * @returns The generated lyrics text.
+   */
+  public async generateLyrics(prompt: string): Promise<string> {
+    await this.keepAlive(false);
+    // Initiate lyrics generation
+    const generateResponse = await this.client.post(`${SunoApi.BASE_URL}/api/generate/lyrics/`, { prompt });
+    const generateId = generateResponse.data.id;
+
+    // Poll for lyrics completion
+    let lyricsResponse = await this.client.get(`${SunoApi.BASE_URL}/api/generate/lyrics/${generateId}`);
+    while (lyricsResponse?.data?.status !== 'complete') {
+      await sleep(2); // Wait for 2 seconds before polling again
+      lyricsResponse = await this.client.get(`${SunoApi.BASE_URL}/api/generate/lyrics/${generateId}`);
+    }
+
+    // Return the generated lyrics text
+    return lyricsResponse.data;
+  }
 
   /**
    * Processes the lyrics (prompt) from the audio metadata into a more readable format.
