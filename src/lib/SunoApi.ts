@@ -20,7 +20,7 @@ export interface AudioInfo {
   gpt_description_prompt?: string; // Prompt for GPT description
   prompt?: string; // Prompt for audio generation
   status: string; // Status
-  type?: string; 
+  type?: string;
   tags?: string; // Genre of music.
   duration?: string; // Duration of the audio
 }
@@ -66,12 +66,11 @@ class SunoApi {
     const getSessionUrl = `${SunoApi.CLERK_BASE_URL}/v1/client?_clerk_js_version=4.70.5`;
     // Get session ID
     const sessionResponse = await this.client.get(getSessionUrl);
-    const sid = sessionResponse.data.response['last_active_session_id'];
-    if (!sid) {
-      throw new Error("Failed to get session id");
+    if (!sessionResponse?.data?.response?.['last_active_session_id']) {
+      throw new Error("Failed to get session id, you may need to update the SUNO_COOKIE");
     }
     // Save session ID for later use
-    this.sid = sid;
+    this.sid = sessionResponse.data.response['last_active_session_id'];
   }
 
   /**
@@ -232,6 +231,28 @@ class SunoApi {
         duration: audio.metadata.duration_formatted,
       }));
     }
+  }
+
+  /**
+   * Generates lyrics based on a given prompt.
+   * @param prompt The prompt for generating lyrics.
+   * @returns The generated lyrics text.
+   */
+  public async generateLyrics(prompt: string): Promise<string> {
+    await this.keepAlive(false);
+    // Initiate lyrics generation
+    const generateResponse = await this.client.post(`${SunoApi.BASE_URL}/api/generate/lyrics/`, { prompt });
+    const generateId = generateResponse.data.id;
+
+    // Poll for lyrics completion
+    let lyricsResponse = await this.client.get(`${SunoApi.BASE_URL}/api/generate/lyrics/${generateId}`);
+    while (lyricsResponse?.data?.status !== 'complete') {
+      await sleep(2); // Wait for 2 seconds before polling again
+      lyricsResponse = await this.client.get(`${SunoApi.BASE_URL}/api/generate/lyrics/${generateId}`);
+    }
+
+    // Return the generated lyrics text
+    return lyricsResponse.data;
   }
 
   /**

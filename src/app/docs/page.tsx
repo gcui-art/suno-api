@@ -16,26 +16,33 @@ export default function Docs() {
                     <Markdown>
                         {`                     
 ---
-Suno API currently mainly implements the following APIs:
+\`gcui-art/suno-api\` currently mainly implements the following APIs:
 
 \`\`\`bash
 - \`/api/generate\`: Generate music
 - \`/api/custom_generate\`: Generate music (Custom Mode, support setting lyrics, 
-    music style, title, etc.)
-- \`/api/get\`: Get music Info
+  music style, title, etc.)
+- \`/api/generate_lyrics\`: Generate lyrics based on prompt
+- \`/api/get\`: Get music information based on the id. Use “,” to separate multiple 
+    ids.  If no IDs are provided, all music will be returned.
 - \`/api/get_limit\`: Get quota Info
 \`\`\`
-Feel free to explore the detailed API parameters and conduct tests on this page. 
 
-> Please note: 
-> 
-> we have bound a free account with a daily usage limit. 
-> You can deploy and bind your own account to complete the testing.
+Feel free to explore the detailed API parameters and conduct tests on this page.
                         `}
                     </Markdown>
                 </article>
             </Section>
             <Section className="my-10">
+                <article className='prose lg:prose-lg max-w-3xl py-10'>
+                    <h2 className='text-center'>
+                        Details of the API and testing it online
+                    </h2>
+                    <p className='text-red-800 italic'>
+                        This is just a demo, bound to a test account. Please do not use it frequently, so that more people can test online.
+                    </p>
+                </article>
+
                 <div className=' border p-4 rounded-2xl shadow-xl hover:shadow-none duration-200'>
                     <Swagger spec={spec} />
                 </div>

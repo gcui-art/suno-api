@@ -3,7 +3,7 @@
   "info": {
     "title": "suno-api",
     "description": "Use API to call the music generation service of Suno.ai and easily integrate it into agents like GPTs.",
-    "version": "1.0.0"
+    "version": "1.1.0"
   },
   "tags": [
     {
@@ -137,6 +137,56 @@
         }
       }
     },
+    "/api/generate_lyrics": {
+      "post": {
+        "summary": "Generate lyrics based on Prompt.",
+        "description": "Generate lyrics based on Prompt.",
+        "tags": ["default"],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["prompt"],
+                "properties": {
+                  "prompt": {
+                    "type": "string",
+                    "description": "Prompt",
+                    "example": "A soothing lullaby"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "text": {
+                      "type": "string",
+                      "description": "Lyrics"
+                    },
+                    "title": {
+                      "type": "string",
+                      "description": "music title"
+                    },
+                    "status": {
+                      "type": "string",
+                      "description": "Status"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/get": {
       "get": {
         "summary": "Get audio information",
@@ -146,8 +196,8 @@
           {
             "in": "query",
             "name": "ids",
-            "description": "Audio IDs, separated by commas.",
-            "required": true,
+            "description": "Audio IDs, separated by commas. Leave blank to return a list of all music.",
+            "required": false,
             "schema": {
               "type": "string"
             }
@@ -297,7 +347,7 @@
           }
         },
         "title": "audio_info",
-        "description": "audio info"
+        "description": "Audio Info"
       }
     }
   }

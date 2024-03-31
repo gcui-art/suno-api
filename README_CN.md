@@ -4,7 +4,7 @@
 
 [English](./README.md) | [简体中文](./README_CN.md)
 
-用 API 调用 suno.ai 的音乐生成AI，并且可以轻松集成到 GPTs 等 agent 中。
+用 API 调用 suno.ai 的音乐生成 AI，并且可以轻松集成到 GPTs 等 agent 中。
 
 ## 简介
 
@@ -20,7 +20,8 @@ Suno.ai v3 是一个令人惊叹的 AI 音乐服务，虽然官方还没有开�
 
 ## Features
 
-- 完美的实现了 app.suno.ai 中的创作 API
+- 完美的实现了 app.suno.ai 中的大部分 API
+- 自动保持账号活跃
 - 支持 Custom Mode
 - 一键部署到 vercel
 - 除了标准 API，还适配了 GPTs、coze 等 Agent 平台的 API Schema，所以你可以把它当做一个 LLM 的工具/插件/Action，集成到任意 AI Agent 中。
@@ -103,14 +104,15 @@ Suno API 目前主要实现了以下 API:
 ```bash
 - `/api/generate`: 创建音乐
 - `/api/custom_generate`: 创建音乐（自定义模式，支持设置歌词、音乐风格、设置标题等）
-- `/api/get`: 获取音乐
+- `/api/generate_lyrics`: 根据Prompt创建歌词
+- `/api/get`: 根据id获取音乐信息。获取多个请用","分隔，不传ids则返回所有音乐
 - `/api/get_limit`: 获取配额信息
 ```
 
 详细文档请查看演示站点:
 [suno.gcui.art/docs](https://suno.gcui.art/docs)
 
-## 代码示例
+## API 集成代码示例
 
 ### Python
 
@@ -170,61 +172,64 @@ if __name__ == '__main__':
 ### Js
 
 ```js
-const axios = require('axios');
+const axios = require("axios");
 
 // replace your vercel domain
-const baseUrl = 'http://localhost:3000';
+const baseUrl = "http://localhost:3000";
 
 async function customGenerateAudio(payload) {
-    const url = `${baseUrl}/api/custom_generate`;
-    const response = await axios.post(url, payload, { headers: { 'Content-Type': 'application/json' } });
-    return response.data;
+  const url = `${baseUrl}/api/custom_generate`;
+  const response = await axios.post(url, payload, {
+    headers: { "Content-Type": "application/json" },
+  });
+  return response.data;
 }
 
 async function generateAudioByPrompt(payload) {
-    const url = `${baseUrl}/api/generate`;
-    const response = await axios.post(url, payload, { headers: { 'Content-Type': 'application/json' } });
-    return response.data;
+  const url = `${baseUrl}/api/generate`;
+  const response = await axios.post(url, payload, {
+    headers: { "Content-Type": "application/json" },
+  });
+  return response.data;
 }
 
 async function getAudioInformation(audioIds) {
-    const url = `${baseUrl}/api/get?ids=${audioIds}`;
-    const response = await axios.get(url);
-    return response.data;
+  const url = `${baseUrl}/api/get?ids=${audioIds}`;
+  const response = await axios.get(url);
+  return response.data;
 }
 
 async function getQuotaInformation() {
-    const url = `${baseUrl}/api/get_limit`;
-    const response = await axios.get(url);
-    return response.data;
+  const url = `${baseUrl}/api/get_limit`;
+  const response = await axios.get(url);
+  return response.data;
 }
 
 async function main() {
-    const data = await generateAudioByPrompt({
-        prompt: "A popular heavy metal song about war, sung by a deep-voiced male singer, slowly and melodiously. The lyrics depict the sorrow of people after the war.",
-        make_instrumental: false,
-        wait_audio: false
-    });
+  const data = await generateAudioByPrompt({
+    prompt:
+      "A popular heavy metal song about war, sung by a deep-voiced male singer, slowly and melodiously. The lyrics depict the sorrow of people after the war.",
+    make_instrumental: false,
+    wait_audio: false,
+  });
 
-    const ids = `${data[0].id},${data[1].id}`;
-    console.log(`ids: ${ids}`);
+  const ids = `${data[0].id},${data[1].id}`;
+  console.log(`ids: ${ids}`);
 
-    for (let i = 0; i < 60; i++) {
-        const data = await getAudioInformation(ids);
-        if (data[0].status === 'streaming') {
-            console.log(`${data[0].id} ==> ${data[0].audio_url}`);
-            console.log(`${data[1].id} ==> ${data[1].audio_url}`);
-            break;
-        }
-        // sleep 5s
-        await new Promise(resolve => setTimeout(resolve, 5000));
+  for (let i = 0; i < 60; i++) {
+    const data = await getAudioInformation(ids);
+    if (data[0].status === "streaming") {
+      console.log(`${data[0].id} ==> ${data[0].audio_url}`);
+      console.log(`${data[1].id} ==> ${data[1].audio_url}`);
+      break;
     }
+    // sleep 5s
+    await new Promise((resolve) => setTimeout(resolve, 5000));
+  }
 }
 
 main();
-
 ```
-
 
 ## 集成到到常见的自定义 Agent 中
 

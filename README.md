@@ -22,6 +22,7 @@ We have deployed an example bound to a free Suno account, so it has daily usage 
 ## Features
 
 - Perfectly implements the creation API from app.suno.ai
+- Automatically keep the account active.
 - Supports Custom Mode
 - One-click deployment to Vercel
 - In addition to the standard API, it also adapts to the API Schema of Agent platforms like GPTs and Coze, so you can use it as a tool/plugin/Action for LLMs and integrate it into any AI Agent.
@@ -106,14 +107,16 @@ Suno API currently mainly implements the following APIs:
 ```bash
 - `/api/generate`: Generate music
 - `/api/custom_generate`: Generate music (Custom Mode, support setting lyrics, music style, title, etc.)
-- `/api/get`: Get music Info
+- `/api/generate_lyrics`: Generate lyrics based on prompt
+- `/api/get`: Get music information based on the id. Use “,” to separate multiple ids.
+    If no IDs are provided, all music will be returned.
 - `/api/get_limit`: Get quota Info
 ```
 
 For more detailed documentation, please check out the demo site:
 [suno.gcui.art/docs](https://suno.gcui.art/docs)
 
-## Code example
+## API Integration Code Example
 
 ### Python
 
@@ -173,59 +176,63 @@ if __name__ == '__main__':
 ### Js
 
 ```js
-const axios = require('axios');
+const axios = require("axios");
 
 // replace your vercel domain
-const baseUrl = 'http://localhost:3000';
+const baseUrl = "http://localhost:3000";
 
 async function customGenerateAudio(payload) {
-    const url = `${baseUrl}/api/custom_generate`;
-    const response = await axios.post(url, payload, { headers: { 'Content-Type': 'application/json' } });
-    return response.data;
+  const url = `${baseUrl}/api/custom_generate`;
+  const response = await axios.post(url, payload, {
+    headers: { "Content-Type": "application/json" },
+  });
+  return response.data;
 }
 
 async function generateAudioByPrompt(payload) {
-    const url = `${baseUrl}/api/generate`;
-    const response = await axios.post(url, payload, { headers: { 'Content-Type': 'application/json' } });
-    return response.data;
+  const url = `${baseUrl}/api/generate`;
+  const response = await axios.post(url, payload, {
+    headers: { "Content-Type": "application/json" },
+  });
+  return response.data;
 }
 
 async function getAudioInformation(audioIds) {
-    const url = `${baseUrl}/api/get?ids=${audioIds}`;
-    const response = await axios.get(url);
-    return response.data;
+  const url = `${baseUrl}/api/get?ids=${audioIds}`;
+  const response = await axios.get(url);
+  return response.data;
 }
 
 async function getQuotaInformation() {
-    const url = `${baseUrl}/api/get_limit`;
-    const response = await axios.get(url);
-    return response.data;
+  const url = `${baseUrl}/api/get_limit`;
+  const response = await axios.get(url);
+  return response.data;
 }
 
 async function main() {
-    const data = await generateAudioByPrompt({
-        prompt: "A popular heavy metal song about war, sung by a deep-voiced male singer, slowly and melodiously. The lyrics depict the sorrow of people after the war.",
-        make_instrumental: false,
-        wait_audio: false
-    });
+  const data = await generateAudioByPrompt({
+    prompt:
+      "A popular heavy metal song about war, sung by a deep-voiced male singer, slowly and melodiously. The lyrics depict the sorrow of people after the war.",
+    make_instrumental: false,
+    wait_audio: false,
+  });
 
-    const ids = `${data[0].id},${data[1].id}`;
-    console.log(`ids: ${ids}`);
+  const ids = `${data[0].id},${data[1].id}`;
+  console.log(`ids: ${ids}`);
 
-    for (let i = 0; i < 60; i++) {
-        const data = await getAudioInformation(ids);
-        if (data[0].status === 'streaming') {
-            console.log(`${data[0].id} ==> ${data[0].audio_url}`);
-            console.log(`${data[1].id} ==> ${data[1].audio_url}`);
-            break;
-        }
-        // sleep 5s
-        await new Promise(resolve => setTimeout(resolve, 5000));
+  for (let i = 0; i < 60; i++) {
+    const data = await getAudioInformation(ids);
+    if (data[0].status === "streaming") {
+      console.log(`${data[0].id} ==> ${data[0].audio_url}`);
+      console.log(`${data[1].id} ==> ${data[1].audio_url}`);
+      break;
     }
+    // sleep 5s
+    await new Promise((resolve) => setTimeout(resolve, 5000));
+  }
 }
 
 main();
-
 ```
 
 ## Integration with Custom Agents
