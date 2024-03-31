@@ -15,9 +15,11 @@
     "lint": "next lint"
   },
   "dependencies": {
+    "@auth0/nextjs-auth0": "^3.5.0",
     "@vercel/analytics": "^1.2.2",
     "axios": "^1.6.8",
     "axios-cookiejar-support": "^5.0.0",
+    "date-fns": "^3.6.0",
     "next": "14.1.4",
     "next-swagger-doc": "^0.4.0",
     "pino": "^8.19.0",
