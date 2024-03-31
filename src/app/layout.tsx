@@ -1,32 +1,26 @@
 import type { Metadata } from "next";
-import { Inter } from "next/font/google";
-import "./globals.css";
-import Header from "./components/Header";
-import Footer from "./components/Footer";
+import "../css/globals.css";
+import "../css/app.css";
 import { Analytics } from "@vercel/analytics/react"
-
-const inter = Inter({ subsets: ["latin"] });
+import Head from 'next/head';
 
 export const metadata: Metadata = {
-  title: "suno api",
-  description: "Use API to call the music generation ai of suno.ai",
-  keywords: ["suno", "suno api", "suno.ai", "api", "music", "generation", "ai"],
-  creator: "@gcui.art",
+  title: "Suno Songs Downloader",
+  description: "Download suno.ai songs for free!",
+  keywords: ["suno", "suno.ai", "music", "generation", "ai", "download", "free"],
+  creator: "Blauker",
 };
 
-export default function RootLayout({
-  children,
-}: Readonly<{
-  children: React.ReactNode;
-}>) {
+export default function RootLayout({ children, }: Readonly<{ children: React.ReactNode; }>) {
   return (
     <html lang="en">
-      <body className={`${inter.className} overflow-y-scroll`} >
-        <Header />
-        <main className="flex flex-col items-center m-auto w-full">
+      <Head>
+        <link rel="icon" href="/favicon.ico" />
+      </Head>
+      <body>
+        <main>
           {children}
         </main>
-        <Footer />
         <Analytics />
       </body>
     </html>

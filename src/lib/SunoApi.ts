@@ -3,7 +3,7 @@ import UserAgent from 'user-agents';
 import pino from 'pino';
 import { wrapper } from "axios-cookiejar-support";
 import { CookieJar } from "tough-cookie";
-import { sleep } from "@/lib/utils";
+import { sleep } from "../lib/utils";
 
 const logger = pino();
 
