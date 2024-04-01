@@ -11,7 +11,9 @@
   | <a target="_blank" href="https://suno.gcui.art">Demo</a> 
   | <a target="_blank" href="https://suno.gcui.art/docs">Docs</a> 
   | <a target="_blank" href="https://vercel.com/new/clone?repository-url=https%3A%2F%2Fgithub.com%2Fgcui-art%2Fsuno-api&env=SUNO_COOKIE&project-name=suno-api&repository-name=suno-api">Deploy with Vercel</a> 
-  
+</p>
+<p align="center">
+  <a href="https://www.producthunt.com/posts/gcui-art-suno-api-open-source-sunoai-api?utm_source=badge-featured&utm_medium=badge&utm_souce=badge-gcui&#0045;art&#0045;suno&#0045;api&#0045;open&#0045;source&#0045;sunoai&#0045;api" target="_blank"><img src="https://api.producthunt.com/widgets/embed-image/v1/featured.svg?post_id=448029&theme=light" alt="gcui&#0045;art&#0047;suno&#0045;api&#0058;Open&#0045;source&#0032;SunoAI&#0032;API - Use&#0032;API&#0032;to&#0032;call&#0032;the&#0032;music&#0032;generation&#0032;AI&#0032;of&#0032;suno&#0046;ai&#0046; | Product Hunt" style="width: 250px; height: 54px;" width="250" height="54" /></a>
 </p>
 
 ![suno-api banner](https://github.com/gcui-art/suno-api/blob/main/public/suno-banner.png)
