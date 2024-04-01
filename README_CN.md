@@ -1,17 +1,27 @@
-# Suno AI API
-
+<div align="center">
+  <h1 align="center"">
+      Suno AI API
+  </h1>
+  <p>用 API 调用 suno.ai 的音乐生成 AI，并且可以轻松集成到 GPTs 等 agent 中。</p>
+  <p>👉 我们更新很快，欢迎 star。</p>
+</div>
+<p align="center">
+  <a target="_blank" href="./README.md">English</a> 
+  | <a target="_blank" href="./README_CN.md">简体中文</a> 
+  | <a target="_blank" href="https://suno.gcui.art">Demo</a> 
+  | <a target="_blank" href="https://suno.gcui.art/docs">文档</a> 
+  | <a target="_blank" href="https://vercel.com/new/clone?repository-url=https%3A%2F%2Fgithub.com%2Fgcui-art%2Fsuno-api&env=SUNO_COOKIE&project-name=suno-api&repository-name=suno-api">一键部署到 Vercel</a> 
+  
+</p>
+<p align="center">
+  <a href="https://www.producthunt.com/posts/gcui-art-suno-api-open-source-sunoai-api?utm_source=badge-featured&utm_medium=badge&utm_souce=badge-gcui&#0045;art&#0045;suno&#0045;api&#0045;open&#0045;source&#0045;sunoai&#0045;api" target="_blank"><img src="https://api.producthunt.com/widgets/embed-image/v1/featured.svg?post_id=448029&theme=light" alt="gcui&#0045;art&#0047;suno&#0045;api&#0058;Open&#0045;source&#0032;SunoAI&#0032;API - Use&#0032;API&#0032;to&#0032;call&#0032;the&#0032;music&#0032;generation&#0032;AI&#0032;of&#0032;suno&#0046;ai&#0046; | Product Hunt" style="width: 250px; height: 54px;" width="250" height="54" /></a>
+</p>
 ![suno-api banner](https://github.com/gcui-art/suno-api/blob/main/public/suno-banner.png)
-
-[English](./README.md) | [简体中文](./README_CN.md)
-
-用 API 调用 suno.ai 的音乐生成 AI，并且可以轻松集成到 GPTs 等 agent 中。
 
 ## 简介
 
 Suno.ai v3 是一个令人惊叹的 AI 音乐服务，虽然官方还没有开放 API，但我们已经迫不及待的想在某些地方集成它的能力。
 我们发现有一些用户也有类似需求，于是我们将这个项目开源了，希望你们喜欢。
-
-👉 我们更新很快，欢迎 Star。
 
 ## Demo
 
