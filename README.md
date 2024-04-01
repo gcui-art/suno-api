@@ -1,12 +1,20 @@
-# Suno AI API
+<div align="center">
+  <h1 align="center"">
+      Suno AI API
+  </h1>
+  <p>Use API to call the music generation AI of Suno.ai and easily integrate it into agents like GPTs.</p>
+  <p>👉 We update quickly, please star.</p>
+</div>
+<p align="center">
+  <a target="_blank" href="./README.md">English</a> 
+  | <a target="_blank" href="./README_CN.md">简体中文</a> 
+  | <a target="_blank" href="https://suno.gcui.art">Demo</a> 
+  | <a target="_blank" href="https://suno.gcui.art/docs">Docs</a> 
+  | <a target="_blank" href="https://vercel.com/new/clone?repository-url=https%3A%2F%2Fgithub.com%2Fgcui-art%2Fsuno-api&env=SUNO_COOKIE&project-name=suno-api&repository-name=suno-api">Deploy with Vercel</a> 
+  
+</p>
 
 ![suno-api banner](https://github.com/gcui-art/suno-api/blob/main/public/suno-banner.png)
-
-[English](./README.md) | [简体中文](./README_CN.md)
-
-Use API to call the music generation AI of Suno.ai and easily integrate it into agents like GPTs.
-
-👉 We update quickly, please Star us.
 
 ## Introduction
 
