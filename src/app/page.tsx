@@ -18,6 +18,7 @@ We update quickly, please star us on Github:  [github.com/gcui-art/suno-api](htt
 ## 🌟 Features
 
 - Perfectly implements the creation API from \`app.suno.ai\`
+- Compatible with the format of OpenAI’s \`/v1/chat/completions\` API.
 - Automatically keep the account active.
 - Supports \`Custom Mode\`
 - One-click deployment to Vercel
@@ -96,6 +97,8 @@ Suno API currently mainly implements the following APIs:
 
 \`\`\`bash
 - \`/api/generate\`: Generate music
+- \`/v1/chat/completions\`: Generate music - Call the generate API in a format 
+  that works with OpenAI’s API.
 - \`/api/custom_generate\`: Generate music (Custom Mode, support setting lyrics, 
   music style, title, etc.)
 - \`/api/generate_lyrics\`: Generate lyrics based on prompt

@@ -11,32 +11,22 @@
     }
   ],
   "paths": {
-    "/api/custom_generate": {
+    "/api/generate": {
       "post": {
-        "summary": "Generate Audio - Custom Mode",
-        "description": "The custom mode enables users to provide additional details about the music, such as music genre, lyrics, and more.\n\n 2 audio files will be generated for each request, consuming a total of 10 credits. \n\n `wait_audio` can be set to API mode:\n\n\u2022 By default, it is set to false, which indicates the background mode. It will only return audio task information, and you will need to call the get API to retrieve detailed audio information.\n\n\u2022 If set to true, it simulates synchronous mode. The API will wait for a maximum of 100s until the audio is generated, and will directly return the audio link and other information. Recommend using in GPTs and other agents.",
+        "summary": "Generate audio based on Prompt.",
+        "description": "It will automatically fill in the lyrics.\n\n2 audio files will be generated for each request, consuming a total of 10 credits.\n\n`wait_audio` can be set to API mode:\n\n\u2022 By default, it is set to `false`, which indicates the background mode. It will only return audio task information, and you will need to call the get API to retrieve detailed audio information.\n\n\u2022 If set to `true`, it simulates synchronous mode. The API will wait for a maximum of 100s until the audio is generated, and will directly return the audio link and other information. Recommend using in GPTs and other agents.",
         "tags": ["default"],
         "requestBody": {
           "content": {
             "application/json": {
               "schema": {
                 "type": "object",
-                "required": ["prompt", "tags", "title"],
+                "required": ["prompt", "make_instrumental", "wait_audio"],
                 "properties": {
                   "prompt": {
                     "type": "string",
-                    "description": "Detailed prompt, including information such as music lyrics.",
-                    "example": "[Verse 1]\nCruel flames of war engulf this land\nBattlefields filled with death and dread\nInnocent souls in darkness, they rest\nMy heart trembles in this silent test\n\n[Verse 2]\nPeople weep for loved ones lost\nBattered bodies bear the cost\nSeeking peace and hope once known\nOur grief transforms to hearts of stone\n\n[Chorus]\nSilent battlegrounds, no birds' song\nShadows of war, where we don't belong\nMay flowers of peace bloom in this place\nLet's guard this precious dream with grace\n\n[Bridge]\nThrough the ashes, we will rise\nHand in hand, towards peaceful skies\nNo more sorrow, no more pain\nTogether, we'll break these chains\n\n[Chorus]\nSilent battlegrounds, no birds' song\nShadows of war, where we don't belong\nMay flowers of peace bloom in this place\nLet's guard this precious dream with grace\n\n[Outro]\nIn unity, our strength will grow\nA brighter future, we'll soon know\nFrom the ruins, hope will spring\nA new dawn, we'll together bring"
-                  },
-                  "tags": {
-                    "type": "string",
-                    "description": "Music genre",
-                    "example": "pop metal male melancholic"
-                  },
-                  "title": {
-                    "type": "string",
-                    "description": "Music title",
-                    "example": "Silent Battlefield"
+                    "description": "Prompt",
+                    "example": "A popular heavy metal song about war, sung by a deep-voiced male singer, slowly and melodiously. The lyrics depict the sorrow of people after the war."
                   },
                   "make_instrumental": {
                     "type": "boolean",
@@ -79,10 +69,10 @@
         }
       }
     },
-    "/api/generate": {
+    "/v1/chat/completions": {
       "post": {
-        "summary": "Generate audio based on Prompt.",
-        "description": "It will automatically fill in the lyrics.\n\n2 audio files will be generated for each request, consuming a total of 10 credits.\n\n`wait_audio` can be set to API mode:\n\n\u2022 By default, it is set to `false`, which indicates the background mode. It will only return audio task information, and you will need to call the get API to retrieve detailed audio information.\n\n\u2022 If set to `true`, it simulates synchronous mode. The API will wait for a maximum of 100s until the audio is generated, and will directly return the audio link and other information. Recommend using in GPTs and other agents.",
+        "summary": "Generate audio based on Prompt - OpenAI API format compatibility.",
+        "description": "Convert the `/api/generate` API to be compatible with the OpenAI `/v1/chat/completions` API format. \n\nGenerally used in OpenAI compatible clients.",
         "tags": ["default"],
         "requestBody": {
           "content": {
@@ -95,6 +85,58 @@
                     "type": "string",
                     "description": "Prompt",
                     "example": "A popular heavy metal song about war, sung by a deep-voiced male singer, slowly and melodiously. The lyrics depict the sorrow of people after the war."
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "data": {
+                      "type": "string",
+                      "description": "Text description for music, with details like title, album cover, lyrics, and more."
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/custom_generate": {
+      "post": {
+        "summary": "Generate Audio - Custom Mode",
+        "description": "The custom mode enables users to provide additional details about the music, such as music genre, lyrics, and more.\n\n 2 audio files will be generated for each request, consuming a total of 10 credits. \n\n `wait_audio` can be set to API mode:\n\n\u2022 By default, it is set to false, which indicates the background mode. It will only return audio task information, and you will need to call the get API to retrieve detailed audio information.\n\n\u2022 If set to true, it simulates synchronous mode. The API will wait for a maximum of 100s until the audio is generated, and will directly return the audio link and other information. Recommend using in GPTs and other agents.",
+        "tags": ["default"],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["prompt", "tags", "title"],
+                "properties": {
+                  "prompt": {
+                    "type": "string",
+                    "description": "Detailed prompt, including information such as music lyrics.",
+                    "example": "[Verse 1]\nCruel flames of war engulf this land\nBattlefields filled with death and dread\nInnocent souls in darkness, they rest\nMy heart trembles in this silent test\n\n[Verse 2]\nPeople weep for loved ones lost\nBattered bodies bear the cost\nSeeking peace and hope once known\nOur grief transforms to hearts of stone\n\n[Chorus]\nSilent battlegrounds, no birds' song\nShadows of war, where we don't belong\nMay flowers of peace bloom in this place\nLet's guard this precious dream with grace\n\n[Bridge]\nThrough the ashes, we will rise\nHand in hand, towards peaceful skies\nNo more sorrow, no more pain\nTogether, we'll break these chains\n\n[Chorus]\nSilent battlegrounds, no birds' song\nShadows of war, where we don't belong\nMay flowers of peace bloom in this place\nLet's guard this precious dream with grace\n\n[Outro]\nIn unity, our strength will grow\nA brighter future, we'll soon know\nFrom the ruins, hope will spring\nA new dawn, we'll together bring"
+                  },
+                  "tags": {
+                    "type": "string",
+                    "description": "Music genre",
+                    "example": "pop metal male melancholic"
+                  },
+                  "title": {
+                    "type": "string",
+                    "description": "Music title",
+                    "example": "Silent Battlefield"
                   },
                   "make_instrumental": {
                     "type": "boolean",

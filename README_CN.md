@@ -33,6 +33,7 @@ Suno.ai v3 是一个令人惊叹的 AI 音乐服务，虽然官方还没有开�
 
 - 完美的实现了 app.suno.ai 中的大部分 API
 - 自动保持账号活跃
+- 兼容OpenAI的 `/v1/chat/completions` API 格式
 - 支持 Custom Mode
 - 一键部署到 vercel
 - 除了标准 API，还适配了 GPTs、coze 等 Agent 平台的 API Schema，所以你可以把它当做一个 LLM 的工具/插件/Action，集成到任意 AI Agent 中。
@@ -114,6 +115,7 @@ Suno API 目前主要实现了以下 API:
 
 ```bash
 - `/api/generate`: 创建音乐
+- `/v1/chat/completions`: 创建音乐 - 用OpenAI API 兼容的格式调用 generate API
 - `/api/custom_generate`: 创建音乐（自定义模式，支持设置歌词、音乐风格、设置标题等）
 - `/api/generate_lyrics`: 根据Prompt创建歌词
 - `/api/get`: 根据id获取音乐信息。获取多个请用","分隔，不传ids则返回所有音乐

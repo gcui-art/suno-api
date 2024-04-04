@@ -33,6 +33,7 @@ We have deployed an example bound to a free Suno account, so it has daily usage 
 
 - Perfectly implements the creation API from app.suno.ai
 - Automatically keep the account active.
+- Compatible with the format of OpenAI’s `/v1/chat/completions` API.
 - Supports Custom Mode
 - One-click deployment to Vercel
 - In addition to the standard API, it also adapts to the API Schema of Agent platforms like GPTs and Coze, so you can use it as a tool/plugin/Action for LLMs and integrate it into any AI Agent.
@@ -116,6 +117,7 @@ Suno API currently mainly implements the following APIs:
 
 ```bash
 - `/api/generate`: Generate music
+- `/v1/chat/completions`: Generate music - Call the generate API in a format that works with OpenAI’s API.
 - `/api/custom_generate`: Generate music (Custom Mode, support setting lyrics, music style, title, etc.)
 - `/api/generate_lyrics`: Generate lyrics based on prompt
 - `/api/get`: Get music information based on the id. Use “,” to separate multiple ids.
