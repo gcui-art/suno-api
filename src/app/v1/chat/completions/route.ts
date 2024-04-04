@@ -1,5 +1,6 @@
 import { NextResponse, NextRequest } from "next/server";
 import { sunoApi } from "@/lib/SunoApi";
+import { corsHeaders } from "@/lib/utils";
 
 export const dynamic = "force-dynamic";
 
@@ -25,9 +26,7 @@ export async function POST(req: NextRequest) {
         status: 400,
         headers: {
           'Content-Type': 'application/json',
-          'Access-Control-Allow-Origin': '*',
-          'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
-          'Access-Control-Allow-Headers': 'Content-Type, Authorization',
+          ...corsHeaders
         }
       });
     }
@@ -40,11 +39,7 @@ export async function POST(req: NextRequest) {
 
     return new NextResponse(data, {
       status: 200,
-      headers: {
-        'Access-Control-Allow-Origin': '*',
-        'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
-        'Access-Control-Allow-Headers': 'Content-Type, Authorization',
-      }
+      headers: corsHeaders
     });
   } catch (error: any) {
     console.error('Error generating audio:', JSON.stringify(error.response.data));
@@ -52,9 +47,7 @@ export async function POST(req: NextRequest) {
       status: 500,
       headers: {
         'Content-Type': 'application/json',
-        'Access-Control-Allow-Origin': '*',
-        'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
-        'Access-Control-Allow-Headers': 'Content-Type, Authorization',
+        ...corsHeaders
       }
     });
   }
@@ -63,10 +56,6 @@ export async function POST(req: NextRequest) {
 export async function OPTIONS(request: Request) {
   return new Response(null, {
     status: 200,
-    headers: {
-      'Access-Control-Allow-Origin': '*',
-      'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
-      'Access-Control-Allow-Headers': 'Content-Type, Authorization',
-    }
+    headers: corsHeaders
   });
 }
