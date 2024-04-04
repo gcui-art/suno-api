@@ -20,6 +20,8 @@ export default function Docs() {
 
 \`\`\`bash
 - \`/api/generate\`: Generate music
+- \`/v1/chat/completions\`: Generate music - Call the generate API in a format 
+  that works with OpenAI’s API.
 - \`/api/custom_generate\`: Generate music (Custom Mode, support setting lyrics, 
   music style, title, etc.)
 - \`/api/generate_lyrics\`: Generate lyrics based on prompt

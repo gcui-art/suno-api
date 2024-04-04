@@ -36,7 +36,7 @@ export async function POST(req: NextRequest) {
     const audioInfo = await (await sunoApi).generate(userMessage.content, true, true);
 
     const audio = audioInfo[0]
-    const data = `## 歌曲名称：${audio.title}\n![歌曲封面](${audio.image_url})\n### 歌词：\n${audio.lyric}\n### 听歌链接： ${audio.audio_url}`
+    const data = `## Song Title: ${audio.title}\n![Song Cover](${audio.image_url})\n### Lyrics:\n${audio.lyric}\n### Listen to the song: ${audio.audio_url}`
 
     return new NextResponse(data, {
       status: 200,
@@ -47,7 +47,7 @@ export async function POST(req: NextRequest) {
       }
     });
   } catch (error: any) {
-    console.error('Error generating custom audio:', JSON.stringify(error.response.data));
+    console.error('Error generating audio:', JSON.stringify(error.response.data));
     return new NextResponse(JSON.stringify({ error: 'Internal server error: ' + JSON.stringify(error.response.data.detail) }), {
       status: 500,
       headers: {
