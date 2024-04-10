@@ -27,7 +27,7 @@ export interface AudioInfo {
 
 class SunoApi {
   private static BASE_URL: string = 'https://studio-api.suno.ai';
-  private static CLERK_BASE_URL: string = 'https://clerk.suno.ai';
+  private static CLERK_BASE_URL: string = 'https://clerk.suno.com';
 
   private readonly client: AxiosInstance;
   private sid?: string;
