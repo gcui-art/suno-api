@@ -14,8 +14,9 @@
   
 </p>
 <p align="center">
-  <a href="https://www.producthunt.com/posts/gcui-art-suno-api-open-source-sunoai-api?utm_source=badge-featured&utm_medium=badge&utm_souce=badge-gcui&#0045;art&#0045;suno&#0045;api&#0045;open&#0045;source&#0045;sunoai&#0045;api" target="_blank"><img src="https://api.producthunt.com/widgets/embed-image/v1/featured.svg?post_id=448029&theme=light" alt="gcui&#0045;art&#0047;suno&#0045;api&#0058;Open&#0045;source&#0032;SunoAI&#0032;API - Use&#0032;API&#0032;to&#0032;call&#0032;the&#0032;music&#0032;generation&#0032;AI&#0032;of&#0032;suno&#0046;ai&#0046; | Product Hunt" style="width: 250px; height: 54px;" width="250" height="54" /></a>
+  <a href="https://www.producthunt.com/products/gcui-art-suno-api-open-source-sunoai-api/reviews?utm_source=badge-product_review&utm_medium=badge&utm_souce=badge-gcui&#0045;art&#0045;suno&#0045;api&#0045;open&#0045;source&#0045;sunoai&#0045;api" target="_blank"><img src="https://api.producthunt.com/widgets/embed-image/v1/product_review.svg?product_id=577408&theme=light" alt="gcui&#0045;art&#0047;suno&#0045;api&#0058;Open&#0045;source&#0032;SunoAI&#0032;API - Use&#0032;API&#0032;to&#0032;call&#0032;the&#0032;music&#0032;generation&#0032;AI&#0032;of&#0032;suno&#0046;ai&#0046; | Product Hunt" style="width: 250px; height: 54px;" width="250" height="54" /></a>
 </p>
+
 ![suno-api banner](https://github.com/gcui-art/suno-api/blob/main/public/suno-banner.png)
 
 ## 简介
@@ -32,6 +33,7 @@ Suno.ai v3 是一个令人惊叹的 AI 音乐服务，虽然官方还没有开�
 
 - 完美的实现了 app.suno.ai 中的大部分 API
 - 自动保持账号活跃
+- 兼容OpenAI的 `/v1/chat/completions` API 格式
 - 支持 Custom Mode
 - 一键部署到 vercel
 - 除了标准 API，还适配了 GPTs、coze 等 Agent 平台的 API Schema，所以你可以把它当做一个 LLM 的工具/插件/Action，集成到任意 AI Agent 中。
@@ -113,6 +115,7 @@ Suno API 目前主要实现了以下 API:
 
 ```bash
 - `/api/generate`: 创建音乐
+- `/v1/chat/completions`: 创建音乐 - 用OpenAI API 兼容的格式调用 generate API
 - `/api/custom_generate`: 创建音乐（自定义模式，支持设置歌词、音乐风格、设置标题等）
 - `/api/generate_lyrics`: 根据Prompt创建歌词
 - `/api/get`: 根据id获取音乐信息。获取多个请用","分隔，不传ids则返回所有音乐
