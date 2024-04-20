@@ -63,7 +63,7 @@ class SunoApi {
    */
   private async getAuthToken() {
     // URL to get session ID
-    const getSessionUrl = `${SunoApi.CLERK_BASE_URL}/v1/client?_clerk_js_version=4.70.5`;
+    const getSessionUrl = `${SunoApi.CLERK_BASE_URL}/v1/client?_clerk_js_version=4.72.1`;
     // Get session ID
     const sessionResponse = await this.client.get(getSessionUrl);
     if (!sessionResponse?.data?.response?.['last_active_session_id']) {
@@ -82,7 +82,7 @@ class SunoApi {
       throw new Error("Session ID is not set. Cannot renew token.");
     }
     // URL to renew session token
-    const renewUrl = `${SunoApi.CLERK_BASE_URL}/v1/client/sessions/${this.sid}/tokens/api?_clerk_js_version=4.70.0`;
+    const renewUrl = `${SunoApi.CLERK_BASE_URL}/v1/client/sessions/${this.sid}/tokens?_clerk_js_version=4.72.0-snapshot.vc141245`;
     // Renew session token
     const renewResponse = await this.client.post(renewUrl);
     logger.info("KeepAlive...\n");
