@@ -105,6 +105,7 @@ Suno API currently mainly implements the following APIs:
 - \`/api/get\`: Get music list
 - \`/api/get?ids=\`: Get music Info by id, separate multiple id with ",".
 - \`/api/get_limit\`: Get quota Info
+- \`/api/extend_audio\`: Extend audio length
 \`\`\`
 
 For more detailed documentation, please check out the demo site:
