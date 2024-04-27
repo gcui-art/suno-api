@@ -123,6 +123,7 @@ Suno API currently mainly implements the following APIs:
 - `/api/get`: Get music information based on the id. Use “,” to separate multiple ids.
     If no IDs are provided, all music will be returned.
 - `/api/get_limit`: Get quota Info
+- `/api/extend_audio`: Extend audio length
 ```
 
 For more detailed documentation, please check out the demo site:
@@ -145,6 +146,11 @@ def custom_generate_audio(payload):
     response = requests.post(url, json=payload, headers={'Content-Type': 'application/json'})
     return response.json()
 
+
+def extend_audio(payload):
+    url = f"{base_url}/api/extend_audio"
+    response = requests.post(url, json=payload, headers={'Content-Type': 'application/json'})
+    return response.json()
 
 def generate_audio_by_prompt(payload):
     url = f"{base_url}/api/generate"
@@ -203,6 +209,14 @@ async function customGenerateAudio(payload) {
 
 async function generateAudioByPrompt(payload) {
   const url = `${baseUrl}/api/generate`;
+  const response = await axios.post(url, payload, {
+    headers: { "Content-Type": "application/json" },
+  });
+  return response.data;
+}
+
+async function extendAudio(payload) {
+  const url = `${baseUrl}/api/extend_audio`;
   const response = await axios.post(url, payload, {
     headers: { "Content-Type": "application/json" },
   });
@@ -273,13 +287,13 @@ LGPL-3.0 or later
 
 ## Contact Us
 
-- Contact us: <support@gcui.art>
+- Contact us: <support@gcui.ai>
 
 ## Related Links
 
 - Project repository: [github.com/gcui-art/suno-api](https://github.com/gcui-art/suno-api)
 - Suno.ai official website: [suno.ai](https://suno.ai)
-- Demo: [suno.gcui.art](https://suno.gcui.art)
+- Demo: [suno.gcui.ai](https://suno.gcui.ai)
 
 ## Statement
 

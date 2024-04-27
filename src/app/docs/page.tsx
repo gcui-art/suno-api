@@ -28,6 +28,7 @@ export default function Docs() {
 - \`/api/get\`: Get music information based on the id. Use “,” to separate multiple 
     ids.  If no IDs are provided, all music will be returned.
 - \`/api/get_limit\`: Get quota Info
+- \`/api/extend_audio\`: Extend audio length
 \`\`\`
 
 Feel free to explore the detailed API parameters and conduct tests on this page.

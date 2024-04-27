@@ -179,6 +179,50 @@
         }
       }
     },
+    "/api/extend_audio": {
+      "post": {
+        "summary": "Extend audio length.",
+        "description": "Extend audio length.",
+        "tags": ["default"],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["audio_id"],
+                "properties": {
+                  "audio_id": {
+                    "type": "string",
+                    "description": "The ID of the audio clip to extend.",
+                    "example": "e76498dc-6ab4-4a10-a19f-8a095790e28d"
+                  },
+                  "prompt": {
+                    "type": "string",
+                    "description": "Detailed prompt, including information such as music lyrics.",
+                    "example": ""
+                  },
+                  "continue_at": {
+                    "type": "string",
+                    "description": "Extend a new clip from a song at mm:ss(e.g. 00:30). Default extends from the end of the song.",
+                    "example": "109.96"
+                  },
+                  "title": {
+                    "type": "string",
+                    "description": "Music title",
+                    "example": ""
+                  },
+                  "tags": {
+                    "type": "string",
+                    "description": "Music genre",
+                    "example": ""
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/generate_lyrics": {
       "post": {
         "summary": "Generate lyrics based on Prompt.",
