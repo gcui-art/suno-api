@@ -277,17 +277,22 @@ You can integrate Suno AI as a tool/plugin/action into your AI agent.
 
 [coming soon...]
 
-## Contribution Guidelines
+## Contributing
 
-Fork the project and submit a pull request.
+There are four ways you can support this project:
+
+1. Fork and Submit Pull Requests: We welcome any PRs that enhance the component or editor.
+2. Open Issues: We appreciate reasonable suggestions and bug reports.
+3. Donate: If this project has helped you, consider buying us a coffee using the Sponsor button at the top of the project. Cheers! ☕
+4. Spread the Word: Recommend this project to others, star the repo, or add a backlink after using the project.
+
+## Questions, Suggestions, Issues, or Bugs?
+
+We use GitHub Issues to manage feedback. Feel free to open an issue, and we'll address it promptly.
 
 ## License
 
 LGPL-3.0 or later
-
-## Contact Us
-
-- Contact us: <support@gcui.ai>
 
 ## Related Links
 
