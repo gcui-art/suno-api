@@ -256,6 +256,34 @@ class SunoApi {
   }
 
   /**
+   * Extends an existing audio clip by generating additional content based on the provided prompt.
+   * 
+   * @param audioId The ID of the audio clip to extend.
+   * @param prompt The prompt for generating additional content.
+   * @param continueAt Extend a new clip from a song at mm:ss(e.g. 00:30). Default extends from the end of the song.
+   * @param tags Style of Music.
+   * @param title Title of the song.
+   * @returns A promise that resolves to an AudioInfo object representing the extended audio clip.
+   */
+  public async extendAudio(
+    audioId: string,
+    prompt: string = "",
+    continueAt: string = "0",
+    tags: string = "",
+    title: string = ""
+  ): Promise<AudioInfo> {
+    const response = await this.client.post(`${SunoApi.BASE_URL}/api/generate/v2/`, {
+      continue_clip_id: audioId,
+      continue_at: continueAt,
+      mv: "chirp-v3-0",
+      prompt: prompt,
+      tags: tags,
+      title: ""
+    });
+    return response.data;
+  }
+
+  /**
    * Processes the lyrics (prompt) from the audio metadata into a more readable format.
    * @param prompt The original lyrics text.
    * @returns The processed lyrics text.
@@ -325,6 +353,10 @@ class SunoApi {
 const newSunoApi = async (cookie: string) => {
   const sunoApi = new SunoApi(cookie);
   return await sunoApi.init();
+}
+
+if (!process.env.SUNO_COOKIE) {
+  console.log("Environment does not contain SUNO_COOKIE.", process.env)
 }
 
 export const sunoApi = newSunoApi(process.env.SUNO_COOKIE || '');

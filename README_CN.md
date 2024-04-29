@@ -33,7 +33,7 @@ Suno.ai v3 是一个令人惊叹的 AI 音乐服务，虽然官方还没有开�
 
 - 完美的实现了 app.suno.ai 中的大部分 API
 - 自动保持账号活跃
-- 兼容OpenAI的 `/v1/chat/completions` API 格式
+- 兼容 OpenAI 的 `/v1/chat/completions` API 格式
 - 支持 Custom Mode
 - 一键部署到 vercel
 - 除了标准 API，还适配了 GPTs、coze 等 Agent 平台的 API Schema，所以你可以把它当做一个 LLM 的工具/插件/Action，集成到任意 AI Agent 中。
@@ -120,6 +120,7 @@ Suno API 目前主要实现了以下 API:
 - `/api/generate_lyrics`: 根据Prompt创建歌词
 - `/api/get`: 根据id获取音乐信息。获取多个请用","分隔，不传ids则返回所有音乐
 - `/api/get_limit`: 获取配额信息
+- `/api/extend_audio`: 在一首音乐的基础上，扩展音乐长度
 ```
 
 详细文档请查看演示站点:
@@ -139,6 +140,11 @@ base_url = 'http://localhost:3000'
 
 def custom_generate_audio(payload):
     url = f"{base_url}/api/custom_generate"
+    response = requests.post(url, json=payload, headers={'Content-Type': 'application/json'})
+    return response.json()
+
+def extend_audio(payload):
+    url = f"{base_url}/api/extend_audio"
     response = requests.post(url, json=payload, headers={'Content-Type': 'application/json'})
     return response.json()
 
@@ -200,6 +206,13 @@ async function customGenerateAudio(payload) {
 
 async function generateAudioByPrompt(payload) {
   const url = `${baseUrl}/api/generate`;
+  const response = await axios.post(url, payload, {
+    headers: { "Content-Type": "application/json" },
+  });
+  return response.data;
+}
+async function extendAudio(payload) {
+  const url = `${baseUrl}/api/extend_audio`;
   const response = await axios.post(url, payload, {
     headers: { "Content-Type": "application/json" },
   });
@@ -270,13 +283,13 @@ LGPL-3.0 或更高版本
 
 ## 联系方式
 
-- 联系我们：<support@gcui.art>
+- 联系我们：<support@gcui.ai>
 
 ## 相关链接
 
 - 项目仓库: [github.com/gcui-art/suno-api](https://github.com/gcui-art/suno-api)
 - Suno.ai 官网: [suno.ai](https://suno.ai)
-- 演示站点: [suno.gcui.art](https://suno.gcui.art)
+- 演示站点: [suno.gcui.ai](https://suno.gcui.ai)
 
 ## 声明
 
