@@ -338,6 +338,12 @@ class SunoApi {
     }));
   }
 
+  public async getClip(clipId: string): Promise<object> {
+    await this.keepAlive(false);
+    const response = await this.client.get(`${SunoApi.BASE_URL}/api/clip/${clipId}`);
+    return response.data;
+  }
+
   public async get_credits(): Promise<object> {
     await this.keepAlive(false);
     const response = await this.client.get(`${SunoApi.BASE_URL}/api/billing/info/`);
