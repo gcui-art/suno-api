@@ -117,6 +117,29 @@ class SunoApi {
   }
 
   /**
+   * Calls the concatenate endpoint for a clip to generate the whole song.
+   * @param clip_id The ID of the audio clip to concatenate.
+   * @returns A promise that resolves to an AudioInfo object representing the concatenated audio.
+   * @throws Error if the response status is not 200.
+   */
+  public async concatenate(clip_id: string): Promise<AudioInfo> {
+    await this.keepAlive(false);
+    const payload: any = { clip_id: clip_id };
+
+    const response = await this.client.post(
+      `${SunoApi.BASE_URL}/api/generate/concat/v2/`,
+      payload,
+      {
+        timeout: 10000, // 10 seconds timeout
+      },
+    );
+    if (response.status !== 200) {
+      throw new Error("Error response:" + response.statusText);
+    }
+    return response.data;
+  }
+
+  /**
    * Generates custom audio based on provided parameters.
    *
    * @param prompt The text prompt to generate audio from.
