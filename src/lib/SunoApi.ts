@@ -361,6 +361,17 @@ class SunoApi {
     }));
   }
 
+  /**
+   * Retrieves information for a specific audio clip.
+   * @param clipId The ID of the audio clip to retrieve information for.
+   * @returns A promise that resolves to an object containing the audio clip information.
+   */
+  public async getClip(clipId: string): Promise<object> {
+    await this.keepAlive(false);
+    const response = await this.client.get(`${SunoApi.BASE_URL}/api/clip/${clipId}`);
+    return response.data;
+  }
+
   public async get_credits(): Promise<object> {
     await this.keepAlive(false);
     const response = await this.client.get(`${SunoApi.BASE_URL}/api/billing/info/`);

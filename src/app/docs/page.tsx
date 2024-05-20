@@ -29,6 +29,7 @@ export default function Docs() {
     ids.  If no IDs are provided, all music will be returned.
 - \`/api/get_limit\`: Get quota Info
 - \`/api/extend_audio\`: Extend audio length
+- \`/api/clip\`:  Get clip information based on ID passed as query parameter \`id\`
 - \`/api/concat\`: Generate the whole song from extensions
 \`\`\`
 
