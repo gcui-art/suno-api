@@ -63,7 +63,7 @@ class SunoApi {
    */
   private async getAuthToken() {
     // URL to get session ID
-    const getSessionUrl = `${SunoApi.CLERK_BASE_URL}/v1/client?_clerk_js_version=4.72.1`;
+    const getSessionUrl = `${SunoApi.CLERK_BASE_URL}/v1/client?_clerk_js_version=4.72.4`;
     // Get session ID
     const sessionResponse = await this.client.get(getSessionUrl);
     if (!sessionResponse?.data?.response?.['last_active_session_id']) {
@@ -82,7 +82,7 @@ class SunoApi {
       throw new Error("Session ID is not set. Cannot renew token.");
     }
     // URL to renew session token
-    const renewUrl = `${SunoApi.CLERK_BASE_URL}/v1/client/sessions/${this.sid}/tokens?_clerk_js_version=4.72.0-snapshot.vc141245`;
+    const renewUrl = `${SunoApi.CLERK_BASE_URL}/v1/client/sessions/${this.sid}/tokens?_clerk_js_version==4.72.4`;
     // Renew session token
     const renewResponse = await this.client.post(renewUrl);
     logger.info("KeepAlive...\n");
@@ -114,6 +114,29 @@ class SunoApi {
     logger.info("Generate Response:\n" + JSON.stringify(audios, null, 2));
     logger.info("Cost time: " + costTime);
     return audios;
+  }
+
+  /**
+   * Calls the concatenate endpoint for a clip to generate the whole song.
+   * @param clip_id The ID of the audio clip to concatenate.
+   * @returns A promise that resolves to an AudioInfo object representing the concatenated audio.
+   * @throws Error if the response status is not 200.
+   */
+  public async concatenate(clip_id: string): Promise<AudioInfo> {
+    await this.keepAlive(false);
+    const payload: any = { clip_id: clip_id };
+
+    const response = await this.client.post(
+      `${SunoApi.BASE_URL}/api/generate/concat/v2/`,
+      payload,
+      {
+        timeout: 10000, // 10 seconds timeout
+      },
+    );
+    if (response.status !== 200) {
+      throw new Error("Error response:" + response.statusText);
+    }
+    return response.data;
   }
 
   /**
