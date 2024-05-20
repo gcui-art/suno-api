@@ -8,9 +8,9 @@ export async function POST(req: NextRequest) {
   if (req.method === 'POST') {
     try {
       const body = await req.json();
-      const { prompt, tags, title, make_instrumental, wait_audio } = body;
-      if (!prompt || !tags || !title) {
-        return new NextResponse(JSON.stringify({ error: 'Prompt, tags, and title are required' }), {
+      const { clip_id } = body;
+      if (!clip_id) {
+        return new NextResponse(JSON.stringify({ error: 'Clip id is required' }), {
           status: 400,
           headers: {
             'Content-Type': 'application/json',
@@ -18,11 +18,7 @@ export async function POST(req: NextRequest) {
           }
         });
       }
-      const audioInfo = await (await sunoApi).custom_generate(
-        prompt, tags, title,
-        make_instrumental == true,
-        wait_audio == true
-      );
+      const audioInfo = await (await sunoApi).concatenate(clip_id);
       return new NextResponse(JSON.stringify(audioInfo), {
         status: 200,
         headers: {
@@ -31,7 +27,7 @@ export async function POST(req: NextRequest) {
         }
       });
     } catch (error: any) {
-      console.error('Error generating custom audio:', error.response.data);
+      console.error('Error generating concatenating audio:', error.response.data);
       if (error.response.status === 402) {
         return new NextResponse(JSON.stringify({ error: error.response.data.detail }), {
           status: 402,
