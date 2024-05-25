@@ -9,6 +9,15 @@ export async function GET(req: NextRequest) {
     try {
       const url = new URL(req.url);
       const clipId = url.searchParams.get('id');
+      if (clipId == null) {
+        return new NextResponse(JSON.stringify({ error: 'Missing parameter id' }), {
+          status: 400,
+          headers: {
+            'Content-Type': 'application/json',
+            ...corsHeaders
+          }
+        });
+      }
       const audioInfo = await (await sunoApi).getClip(clipId);
 
       return new NextResponse(JSON.stringify(audioInfo), {
