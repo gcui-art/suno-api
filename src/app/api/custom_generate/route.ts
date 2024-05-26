@@ -2,6 +2,7 @@ import { NextResponse, NextRequest } from "next/server";
 import { sunoApi } from "@/lib/SunoApi";
 import { corsHeaders } from "@/lib/utils";
 
+export const maxDuration = 60; // allow longer timeout for wait_audio == true
 export const dynamic = "force-dynamic";
 
 export async function POST(req: NextRequest) {
