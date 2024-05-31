@@ -186,7 +186,7 @@ class SunoApi {
     await this.keepAlive(false);
     const payload: any = {
       make_instrumental: make_instrumental == true,
-      mv: "chirp-v3-0",
+      mv: "chirp-v3-5",
       prompt: "",
     };
     if (isCustom) {
