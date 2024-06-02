@@ -9,12 +9,12 @@ const logger = pino();
 
 
 export interface AudioInfo {
-  id: string; // Unique identifier for the audio             
+  id: string; // Unique identifier for the audio
   title?: string; // Title of the audio
   image_url?: string; // URL of the image associated with the audio
   lyric?: string; // Lyrics of the audio
   audio_url?: string; // URL of the audio file
-  video_url?: string; // URL of the video associated with the audio           
+  video_url?: string; // URL of the video associated with the audio
   created_at: string; // Date and time when the audio was created
   model_name: string; // Name of the model used for audio generation
   gpt_description_prompt?: string; // Prompt for GPT description
@@ -173,7 +173,7 @@ class SunoApi {
    * @param title Optional title for the song, used only if isCustom is true.
    * @param make_instrumental Indicates if the generated song should be instrumental.
    * @param wait_audio Indicates if the method should wait for the audio file to be fully generated before returning.
-   * @returns A promise that resolves to an array of AudioInfo objects representing the generated songs. 
+   * @returns A promise that resolves to an array of AudioInfo objects representing the generated songs.
    */
   private async generateSongs(
     prompt: string,
@@ -186,7 +186,7 @@ class SunoApi {
     await this.keepAlive(false);
     const payload: any = {
       make_instrumental: make_instrumental == true,
-      mv: "chirp-v3-5", 
+      mv: "chirp-v3-5",
       prompt: "",
     };
     if (isCustom) {
@@ -285,10 +285,10 @@ class SunoApi {
    * @param prompt The prompt for generating additional content.
    * @param continueAt Extend a new clip from a song at mm:ss(e.g. 00:30). Default extends from the end of the song.
    * @param tags Style of Music.
-   * @param title Title of the song.                                                                                                                                                               
+   * @param title Title of the song.
    * @returns A promise that resolves to an AudioInfo object representing the extended audio clip.
    */
-  public async extendAudio(                                                                                                          
+  public async extendAudio(
     audioId: string,
     prompt: string = "",
     continueAt: string = "0",
@@ -298,8 +298,8 @@ class SunoApi {
     const response = await this.client.post(`${SunoApi.BASE_URL}/api/generate/v2/`, {
       continue_clip_id: audioId,
       continue_at: continueAt,
-      mv: "chirp-v3-5",                                                                                                                          
-      prompt: prompt, 
+      mv: "chirp-v3-5",
+      prompt: prompt,
       tags: tags,
       title: ""
     });
@@ -327,7 +327,7 @@ class SunoApi {
 
   /**
    * Retrieves audio information for the given song IDs.
-   * @param songIds An optional array of song IDs to retrieve information for. 
+   * @param songIds An optional array of song IDs to retrieve information for.
    * @returns A promise that resolves to an array of AudioInfo objects.
    */
   public async get(songIds?: string[]): Promise<AudioInfo[]> {
