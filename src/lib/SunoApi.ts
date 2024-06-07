@@ -23,6 +23,7 @@ export interface AudioInfo {
   type?: string;
   tags?: string; // Genre of music.
   duration?: string; // Duration of the audio
+  error_message?: string; // Error message if any
 }
 
 class SunoApi {
@@ -227,7 +228,10 @@ class SunoApi {
         const allCompleted = response.every(
           audio => audio.status === 'streaming' || audio.status === 'complete'
         );
-        if (allCompleted) {
+        const allError = response.every(
+          audio => audio.status === 'error'
+        );
+        if (allCompleted || allError) {
           return response;
         }
         lastResponse = response;
@@ -358,6 +362,7 @@ class SunoApi {
       type: audio.metadata.type,
       tags: audio.metadata.tags,
       duration: audio.metadata.duration_formatted,
+      error_message: audio.metadata.error_message,
     }));
   }
 
