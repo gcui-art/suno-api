@@ -13,7 +13,7 @@ dependencies:
     version: 1.6.8
   axios-cookiejar-support:
     specifier: ^5.0.0
-    version: 5.0.0(axios@1.6.8)(tough-cookie@4.1.3)
+    version: 5.0.0(axios@1.6.8)(tough-cookie@4.1.4)
   next:
     specifier: 14.1.4
     version: 14.1.4(react-dom@18.2.0)(react@18.2.0)
@@ -39,8 +39,8 @@ dependencies:
     specifier: ^5.12.3
     version: 5.12.3(@types/react@18.2.72)(react-dom@18.2.0)(react@18.2.0)
   tough-cookie:
-    specifier: ^4.1.3
-    version: 4.1.3
+    specifier: ^4.1.4
+    version: 4.1.4
   user-agents:
     specifier: ^1.1.156
     version: 1.1.156
@@ -71,7 +71,7 @@ devDependencies:
     specifier: ^10.0.1
     version: 10.4.19(postcss@8.4.38)
   eslint:
-    specifier: ^8
+    specifier: ^8.57.0
     version: 8.57.0
   eslint-config-next:
     specifier: 14.1.4
@@ -262,7 +262,7 @@ packages:
     dev: true
 
   /@next/swc-darwin-arm64@14.1.4:
-    resolution: {integrity: sha512-ubmUkbmW65nIAOmoxT1IROZdmmJMmdYvXIe8211send9ZYJu+SqxSnJM4TrPj9wmL6g9Atvj0S/2cFmMSS99jg==, tarball: https://registry.npmmirror.com/@next/swc-darwin-arm64/-/swc-darwin-arm64-14.1.4.tgz}
+    resolution: {integrity: sha512-ubmUkbmW65nIAOmoxT1IROZdmmJMmdYvXIe8211send9ZYJu+SqxSnJM4TrPj9wmL6g9Atvj0S/2cFmMSS99jg==}
     engines: {node: '>= 10'}
     cpu: [arm64]
     os: [darwin]
@@ -271,7 +271,7 @@ packages:
     optional: true
 
   /@next/swc-darwin-x64@14.1.4:
-    resolution: {integrity: sha512-b0Xo1ELj3u7IkZWAKcJPJEhBop117U78l70nfoQGo4xUSvv0PJSTaV4U9xQBLvZlnjsYkc8RwQN1HoH/oQmLlQ==, tarball: https://registry.npmmirror.com/@next/swc-darwin-x64/-/swc-darwin-x64-14.1.4.tgz}
+    resolution: {integrity: sha512-b0Xo1ELj3u7IkZWAKcJPJEhBop117U78l70nfoQGo4xUSvv0PJSTaV4U9xQBLvZlnjsYkc8RwQN1HoH/oQmLlQ==}
     engines: {node: '>= 10'}
     cpu: [x64]
     os: [darwin]
@@ -280,7 +280,7 @@ packages:
     optional: true
 
   /@next/swc-linux-arm64-gnu@14.1.4:
-    resolution: {integrity: sha512-457G0hcLrdYA/u1O2XkRMsDKId5VKe3uKPvrKVOyuARa6nXrdhJOOYU9hkKKyQTMru1B8qEP78IAhf/1XnVqKA==, tarball: https://registry.npmmirror.com/@next/swc-linux-arm64-gnu/-/swc-linux-arm64-gnu-14.1.4.tgz}
+    resolution: {integrity: sha512-457G0hcLrdYA/u1O2XkRMsDKId5VKe3uKPvrKVOyuARa6nXrdhJOOYU9hkKKyQTMru1B8qEP78IAhf/1XnVqKA==}
     engines: {node: '>= 10'}
     cpu: [arm64]
     os: [linux]
@@ -290,7 +290,7 @@ packages:
     optional: true
 
   /@next/swc-linux-arm64-musl@14.1.4:
-    resolution: {integrity: sha512-l/kMG+z6MB+fKA9KdtyprkTQ1ihlJcBh66cf0HvqGP+rXBbOXX0dpJatjZbHeunvEHoBBS69GYQG5ry78JMy3g==, tarball: https://registry.npmmirror.com/@next/swc-linux-arm64-musl/-/swc-linux-arm64-musl-14.1.4.tgz}
+    resolution: {integrity: sha512-l/kMG+z6MB+fKA9KdtyprkTQ1ihlJcBh66cf0HvqGP+rXBbOXX0dpJatjZbHeunvEHoBBS69GYQG5ry78JMy3g==}
     engines: {node: '>= 10'}
     cpu: [arm64]
     os: [linux]
@@ -300,7 +300,7 @@ packages:
     optional: true
 
   /@next/swc-linux-x64-gnu@14.1.4:
-    resolution: {integrity: sha512-BapIFZ3ZRnvQ1uWbmqEGJuPT9cgLwvKtxhK/L2t4QYO7l+/DxXuIGjvp1x8rvfa/x1FFSsipERZK70pewbtJtw==, tarball: https://registry.npmmirror.com/@next/swc-linux-x64-gnu/-/swc-linux-x64-gnu-14.1.4.tgz}
+    resolution: {integrity: sha512-BapIFZ3ZRnvQ1uWbmqEGJuPT9cgLwvKtxhK/L2t4QYO7l+/DxXuIGjvp1x8rvfa/x1FFSsipERZK70pewbtJtw==}
     engines: {node: '>= 10'}
     cpu: [x64]
     os: [linux]
@@ -310,7 +310,7 @@ packages:
     optional: true
 
   /@next/swc-linux-x64-musl@14.1.4:
-    resolution: {integrity: sha512-mqVxTwk4XuBl49qn2A5UmzFImoL1iLm0KQQwtdRJRKl21ylQwwGCxJtIYo2rbfkZHoSKlh/YgztY0qH3wG1xIg==, tarball: https://registry.npmmirror.com/@next/swc-linux-x64-musl/-/swc-linux-x64-musl-14.1.4.tgz}
+    resolution: {integrity: sha512-mqVxTwk4XuBl49qn2A5UmzFImoL1iLm0KQQwtdRJRKl21ylQwwGCxJtIYo2rbfkZHoSKlh/YgztY0qH3wG1xIg==}
     engines: {node: '>= 10'}
     cpu: [x64]
     os: [linux]
@@ -320,7 +320,7 @@ packages:
     optional: true
 
   /@next/swc-win32-arm64-msvc@14.1.4:
-    resolution: {integrity: sha512-xzxF4ErcumXjO2Pvg/wVGrtr9QQJLk3IyQX1ddAC/fi6/5jZCZ9xpuL9Tzc4KPWMFq8GGWFVDMshZOdHGdkvag==, tarball: https://registry.npmmirror.com/@next/swc-win32-arm64-msvc/-/swc-win32-arm64-msvc-14.1.4.tgz}
+    resolution: {integrity: sha512-xzxF4ErcumXjO2Pvg/wVGrtr9QQJLk3IyQX1ddAC/fi6/5jZCZ9xpuL9Tzc4KPWMFq8GGWFVDMshZOdHGdkvag==}
     engines: {node: '>= 10'}
     cpu: [arm64]
     os: [win32]
@@ -329,7 +329,7 @@ packages:
     optional: true
 
   /@next/swc-win32-ia32-msvc@14.1.4:
-    resolution: {integrity: sha512-WZiz8OdbkpRw6/IU/lredZWKKZopUMhcI2F+XiMAcPja0uZYdMTZQRoQ0WZcvinn9xZAidimE7tN9W5v9Yyfyw==, tarball: https://registry.npmmirror.com/@next/swc-win32-ia32-msvc/-/swc-win32-ia32-msvc-14.1.4.tgz}
+    resolution: {integrity: sha512-WZiz8OdbkpRw6/IU/lredZWKKZopUMhcI2F+XiMAcPja0uZYdMTZQRoQ0WZcvinn9xZAidimE7tN9W5v9Yyfyw==}
     engines: {node: '>= 10'}
     cpu: [ia32]
     os: [win32]
@@ -338,7 +338,7 @@ packages:
     optional: true
 
   /@next/swc-win32-x64-msvc@14.1.4:
-    resolution: {integrity: sha512-4Rto21sPfw555sZ/XNLqfxDUNeLhNYGO2dlPqsnuCg8N8a2a9u1ltqBOPQ4vj1Gf7eJC0W2hHG2eYUHuiXgY2w==, tarball: https://registry.npmmirror.com/@next/swc-win32-x64-msvc/-/swc-win32-x64-msvc-14.1.4.tgz}
+    resolution: {integrity: sha512-4Rto21sPfw555sZ/XNLqfxDUNeLhNYGO2dlPqsnuCg8N8a2a9u1ltqBOPQ4vj1Gf7eJC0W2hHG2eYUHuiXgY2w==}
     engines: {node: '>= 10'}
     cpu: [x64]
     os: [win32]
@@ -368,7 +368,7 @@ packages:
     dev: true
 
   /@pkgjs/parseargs@0.11.0:
-    resolution: {integrity: sha512-+1VkjdD0QBLPodGrJUeqarH8VAIvQODIbwh9XpP5Syisf7YoQgsJKPNFoqqLQlu+VQ/tVSshMR6loPMn8U+dPg==, tarball: https://registry.npmmirror.com/@pkgjs/parseargs/-/parseargs-0.11.0.tgz}
+    resolution: {integrity: sha512-+1VkjdD0QBLPodGrJUeqarH8VAIvQODIbwh9XpP5Syisf7YoQgsJKPNFoqqLQlu+VQ/tVSshMR6loPMn8U+dPg==}
     engines: {node: '>=14'}
     requiresBuild: true
     dev: true
@@ -436,7 +436,7 @@ packages:
     optional: true
 
   /@swagger-api/apidom-ns-asyncapi-2@0.98.0:
-    resolution: {integrity: sha512-3oXGYjNL60S+wKIOM7NGxoWpISAs9/mpXTOEtEBGwPy2LZ4HQ/DpAmkQJq5FUH3ChJDDkiWPR24jfBQDSIsLqw==, tarball: https://registry.npmmirror.com/@swagger-api/apidom-ns-asyncapi-2/-/apidom-ns-asyncapi-2-0.98.0.tgz}
+    resolution: {integrity: sha512-3oXGYjNL60S+wKIOM7NGxoWpISAs9/mpXTOEtEBGwPy2LZ4HQ/DpAmkQJq5FUH3ChJDDkiWPR24jfBQDSIsLqw==}
     requiresBuild: true
     dependencies:
       '@babel/runtime-corejs3': 7.24.1
@@ -492,7 +492,7 @@ packages:
     optional: true
 
   /@swagger-api/apidom-ns-openapi-2@0.98.0:
-    resolution: {integrity: sha512-AOZIUfRFwUN4ujb6BiFH16h8QEb93/ZDh7R5ly6lnKBsXhD/l8KgQFwZAB4PsGDJ1no6KlTWL1F0O3ucSv2cmQ==, tarball: https://registry.npmmirror.com/@swagger-api/apidom-ns-openapi-2/-/apidom-ns-openapi-2-0.98.0.tgz}
+    resolution: {integrity: sha512-AOZIUfRFwUN4ujb6BiFH16h8QEb93/ZDh7R5ly6lnKBsXhD/l8KgQFwZAB4PsGDJ1no6KlTWL1F0O3ucSv2cmQ==}
     requiresBuild: true
     dependencies:
       '@babel/runtime-corejs3': 7.24.1
@@ -533,7 +533,7 @@ packages:
     dev: false
 
   /@swagger-api/apidom-ns-workflows-1@0.98.0:
-    resolution: {integrity: sha512-jaJYpBHKcX+Sz8f3QGFEM6jYzSKOJTKNrfqwNBLkOwa1AZrMwiofqGhjAiz5HHFNkfYJdR6LQmSU4sq24IamHw==, tarball: https://registry.npmmirror.com/@swagger-api/apidom-ns-workflows-1/-/apidom-ns-workflows-1-0.98.0.tgz}
+    resolution: {integrity: sha512-jaJYpBHKcX+Sz8f3QGFEM6jYzSKOJTKNrfqwNBLkOwa1AZrMwiofqGhjAiz5HHFNkfYJdR6LQmSU4sq24IamHw==}
     requiresBuild: true
     dependencies:
       '@babel/runtime-corejs3': 7.24.1
@@ -547,7 +547,7 @@ packages:
     optional: true
 
   /@swagger-api/apidom-parser-adapter-api-design-systems-json@0.98.0:
-    resolution: {integrity: sha512-gfQmKNexWhDN3uOuc8NUt5wXGRFzwdNYeEYyEVPFO0+Nbs8qrdqmfgiuXgpvEDXkDJZiIug4zPMC2Q1XiB7zMA==, tarball: https://registry.npmmirror.com/@swagger-api/apidom-parser-adapter-api-design-systems-json/-/apidom-parser-adapter-api-design-systems-json-0.98.0.tgz}
+    resolution: {integrity: sha512-gfQmKNexWhDN3uOuc8NUt5wXGRFzwdNYeEYyEVPFO0+Nbs8qrdqmfgiuXgpvEDXkDJZiIug4zPMC2Q1XiB7zMA==}
     requiresBuild: true
     dependencies:
       '@babel/runtime-corejs3': 7.24.1
@@ -561,7 +561,7 @@ packages:
     optional: true
 
   /@swagger-api/apidom-parser-adapter-api-design-systems-yaml@0.98.0:
-    resolution: {integrity: sha512-U8zhua172l2CKh200rVKPwounwGDr6DEzi0BaA31pTcel8e2jwmEkGTJ4PdO1aCHN1cDYVYXMGyEf67gOoo/kg==, tarball: https://registry.npmmirror.com/@swagger-api/apidom-parser-adapter-api-design-systems-yaml/-/apidom-parser-adapter-api-design-systems-yaml-0.98.0.tgz}
+    resolution: {integrity: sha512-U8zhua172l2CKh200rVKPwounwGDr6DEzi0BaA31pTcel8e2jwmEkGTJ4PdO1aCHN1cDYVYXMGyEf67gOoo/kg==}
     requiresBuild: true
     dependencies:
       '@babel/runtime-corejs3': 7.24.1
@@ -575,7 +575,7 @@ packages:
     optional: true
 
   /@swagger-api/apidom-parser-adapter-asyncapi-json-2@0.98.0:
-    resolution: {integrity: sha512-4mV0Ja+r2s5WAqJyZJHtQsNhyR2x8J+fYhcmuBHcqZp3sokzTObAAImsIdZ1zYdFYrrZgymD4GMk4RoLbJM3FQ==, tarball: https://registry.npmmirror.com/@swagger-api/apidom-parser-adapter-asyncapi-json-2/-/apidom-parser-adapter-asyncapi-json-2-0.98.0.tgz}
+    resolution: {integrity: sha512-4mV0Ja+r2s5WAqJyZJHtQsNhyR2x8J+fYhcmuBHcqZp3sokzTObAAImsIdZ1zYdFYrrZgymD4GMk4RoLbJM3FQ==}
     requiresBuild: true
     dependencies:
       '@babel/runtime-corejs3': 7.24.1
@@ -589,7 +589,7 @@ packages:
     optional: true
 
   /@swagger-api/apidom-parser-adapter-asyncapi-yaml-2@0.98.0:
-    resolution: {integrity: sha512-FLb5IUVhOdhRSfi2OnpOWxiB7CVZXrqG1rSniOWQ4fjeQ7urB5NJv6p2nbC9waduHA0B0mItiO1ijvbOFf0Dcw==, tarball: https://registry.npmmirror.com/@swagger-api/apidom-parser-adapter-asyncapi-yaml-2/-/apidom-parser-adapter-asyncapi-yaml-2-0.98.0.tgz}
+    resolution: {integrity: sha512-FLb5IUVhOdhRSfi2OnpOWxiB7CVZXrqG1rSniOWQ4fjeQ7urB5NJv6p2nbC9waduHA0B0mItiO1ijvbOFf0Dcw==}
     requiresBuild: true
     dependencies:
       '@babel/runtime-corejs3': 7.24.1
@@ -603,7 +603,7 @@ packages:
     optional: true
 
   /@swagger-api/apidom-parser-adapter-json@0.98.0:
-    resolution: {integrity: sha512-tZkL4sZ5JsICnhYGTeCApHRbfyAkjydb5h+OOE+MAEajRxi/PWklFDGiU7viScPWWE9cPnzRqtp8M0RutmHJew==, tarball: https://registry.npmmirror.com/@swagger-api/apidom-parser-adapter-json/-/apidom-parser-adapter-json-0.98.0.tgz}
+    resolution: {integrity: sha512-tZkL4sZ5JsICnhYGTeCApHRbfyAkjydb5h+OOE+MAEajRxi/PWklFDGiU7viScPWWE9cPnzRqtp8M0RutmHJew==}
     requiresBuild: true
     dependencies:
       '@babel/runtime-corejs3': 7.24.1
@@ -620,7 +620,7 @@ packages:
     optional: true
 
   /@swagger-api/apidom-parser-adapter-openapi-json-2@0.98.0:
-    resolution: {integrity: sha512-81M0Z0N0oWCiUy251IIewm9YwKDFyR84XccrHnIIf/aWuikU2IRr5fDonxweIPuDYybKdpia8lca0GG/iI6G3g==, tarball: https://registry.npmmirror.com/@swagger-api/apidom-parser-adapter-openapi-json-2/-/apidom-parser-adapter-openapi-json-2-0.98.0.tgz}
+    resolution: {integrity: sha512-81M0Z0N0oWCiUy251IIewm9YwKDFyR84XccrHnIIf/aWuikU2IRr5fDonxweIPuDYybKdpia8lca0GG/iI6G3g==}
     requiresBuild: true
     dependencies:
       '@babel/runtime-corejs3': 7.24.1
@@ -634,7 +634,7 @@ packages:
     optional: true
 
   /@swagger-api/apidom-parser-adapter-openapi-json-3-0@0.98.0:
-    resolution: {integrity: sha512-mfvj3f75CYAUtslv5ildHllGl8ZWpuge9alTcjxtwIGUu85oXdQ6yv7EExWHe2icZ3w+VY12VzwMbpEumx6k/Q==, tarball: https://registry.npmmirror.com/@swagger-api/apidom-parser-adapter-openapi-json-3-0/-/apidom-parser-adapter-openapi-json-3-0-0.98.0.tgz}
+    resolution: {integrity: sha512-mfvj3f75CYAUtslv5ildHllGl8ZWpuge9alTcjxtwIGUu85oXdQ6yv7EExWHe2icZ3w+VY12VzwMbpEumx6k/Q==}
     requiresBuild: true
     dependencies:
       '@babel/runtime-corejs3': 7.24.1
@@ -648,7 +648,7 @@ packages:
     optional: true
 
   /@swagger-api/apidom-parser-adapter-openapi-json-3-1@0.98.0:
-    resolution: {integrity: sha512-HzlF/G+tygojw8UswwdLptDUBGhp9d+nGzADG2j+M1onBrw35/jdRPtX4S2KQ8mmwyEEgHlRENhv7yndvCbvPg==, tarball: https://registry.npmmirror.com/@swagger-api/apidom-parser-adapter-openapi-json-3-1/-/apidom-parser-adapter-openapi-json-3-1-0.98.0.tgz}
+    resolution: {integrity: sha512-HzlF/G+tygojw8UswwdLptDUBGhp9d+nGzADG2j+M1onBrw35/jdRPtX4S2KQ8mmwyEEgHlRENhv7yndvCbvPg==}
     requiresBuild: true
     dependencies:
       '@babel/runtime-corejs3': 7.24.1
@@ -662,7 +662,7 @@ packages:
     optional: true
 
   /@swagger-api/apidom-parser-adapter-openapi-yaml-2@0.98.0:
-    resolution: {integrity: sha512-FzQNMk6gDUSp2PLtMKhnDF6MFk0T7y6ewPrYk0ztcul+m6YQD4pdcUXhpXcwtfy9dspJQERF7UKuaK9dZsm8BQ==, tarball: https://registry.npmmirror.com/@swagger-api/apidom-parser-adapter-openapi-yaml-2/-/apidom-parser-adapter-openapi-yaml-2-0.98.0.tgz}
+    resolution: {integrity: sha512-FzQNMk6gDUSp2PLtMKhnDF6MFk0T7y6ewPrYk0ztcul+m6YQD4pdcUXhpXcwtfy9dspJQERF7UKuaK9dZsm8BQ==}
     requiresBuild: true
     dependencies:
       '@babel/runtime-corejs3': 7.24.1
@@ -676,7 +676,7 @@ packages:
     optional: true
 
   /@swagger-api/apidom-parser-adapter-openapi-yaml-3-0@0.98.0:
-    resolution: {integrity: sha512-H1EYjBDeKx0WiPqsrUkb+Zlm59rqbtQb6w+SAdkw4PBHi0+yOgOlvUrIkTYEVy8BD6he01dbMocv+EDXpd9rww==, tarball: https://registry.npmmirror.com/@swagger-api/apidom-parser-adapter-openapi-yaml-3-0/-/apidom-parser-adapter-openapi-yaml-3-0-0.98.0.tgz}
+    resolution: {integrity: sha512-H1EYjBDeKx0WiPqsrUkb+Zlm59rqbtQb6w+SAdkw4PBHi0+yOgOlvUrIkTYEVy8BD6he01dbMocv+EDXpd9rww==}
     requiresBuild: true
     dependencies:
       '@babel/runtime-corejs3': 7.24.1
@@ -690,7 +690,7 @@ packages:
     optional: true
 
   /@swagger-api/apidom-parser-adapter-openapi-yaml-3-1@0.98.0:
-    resolution: {integrity: sha512-sxnAJDg0TGK0T4HwtkE1mkfQWL564UGlgvU+gfrEmOLjsfqRDrlFfffYKguqtJdz17+HgUp78Sqj6Ey48J83Jw==, tarball: https://registry.npmmirror.com/@swagger-api/apidom-parser-adapter-openapi-yaml-3-1/-/apidom-parser-adapter-openapi-yaml-3-1-0.98.0.tgz}
+    resolution: {integrity: sha512-sxnAJDg0TGK0T4HwtkE1mkfQWL564UGlgvU+gfrEmOLjsfqRDrlFfffYKguqtJdz17+HgUp78Sqj6Ey48J83Jw==}
     requiresBuild: true
     dependencies:
       '@babel/runtime-corejs3': 7.24.1
@@ -704,7 +704,7 @@ packages:
     optional: true
 
   /@swagger-api/apidom-parser-adapter-workflows-json-1@0.98.0:
-    resolution: {integrity: sha512-XroOfEPbs6Ogl4pSZGQ4yctu4OsMQw5qvnVTFS3hCr+fHQXFIaD+remFRjHQRqhyVC0FDmw0mggWubcSosiyCg==, tarball: https://registry.npmmirror.com/@swagger-api/apidom-parser-adapter-workflows-json-1/-/apidom-parser-adapter-workflows-json-1-0.98.0.tgz}
+    resolution: {integrity: sha512-XroOfEPbs6Ogl4pSZGQ4yctu4OsMQw5qvnVTFS3hCr+fHQXFIaD+remFRjHQRqhyVC0FDmw0mggWubcSosiyCg==}
     requiresBuild: true
     dependencies:
       '@babel/runtime-corejs3': 7.24.1
@@ -718,7 +718,7 @@ packages:
     optional: true
 
   /@swagger-api/apidom-parser-adapter-workflows-yaml-1@0.98.0:
-    resolution: {integrity: sha512-9SG9g+raKEU8cpEVT7eYlHGUEWAB7DYm/oNN5k3i4hLbJUIYKrL4KAK1sRrfxrGRiCIJG/O/jw4NLcSVgLcVJQ==, tarball: https://registry.npmmirror.com/@swagger-api/apidom-parser-adapter-workflows-yaml-1/-/apidom-parser-adapter-workflows-yaml-1-0.98.0.tgz}
+    resolution: {integrity: sha512-9SG9g+raKEU8cpEVT7eYlHGUEWAB7DYm/oNN5k3i4hLbJUIYKrL4KAK1sRrfxrGRiCIJG/O/jw4NLcSVgLcVJQ==}
     requiresBuild: true
     dependencies:
       '@babel/runtime-corejs3': 7.24.1
@@ -732,7 +732,7 @@ packages:
     optional: true
 
   /@swagger-api/apidom-parser-adapter-yaml-1-2@0.98.0:
-    resolution: {integrity: sha512-pEIZblIK+/k9p6wge3z9uX1bVD7zzXhoxg3hgpClojZmmJV/jriDUmRzLO1MeqVbH+JFXE2FGFvE5D4CRFCEVw==, tarball: https://registry.npmmirror.com/@swagger-api/apidom-parser-adapter-yaml-1-2/-/apidom-parser-adapter-yaml-1-2-0.98.0.tgz}
+    resolution: {integrity: sha512-pEIZblIK+/k9p6wge3z9uX1bVD7zzXhoxg3hgpClojZmmJV/jriDUmRzLO1MeqVbH+JFXE2FGFvE5D4CRFCEVw==}
     requiresBuild: true
     dependencies:
       '@babel/runtime-corejs3': 7.24.1
@@ -1239,7 +1239,7 @@ packages:
     engines: {node: '>=4'}
     dev: true
 
-  /axios-cookiejar-support@5.0.0(axios@1.6.8)(tough-cookie@4.1.3):
+  /axios-cookiejar-support@5.0.0(axios@1.6.8)(tough-cookie@4.1.4):
     resolution: {integrity: sha512-4zdO95qgsKp0OX+LUwD0MRWdD0r5YsQBpTi3ULHLL87qU58QZl3O3UQF58fZTzcdGtxYPtcotyXT7sNWDE37ug==, tarball: https://registry.npmmirror.com/axios-cookiejar-support/-/axios-cookiejar-support-5.0.0.tgz}
     engines: {node: '>=18.0.0'}
     peerDependencies:
@@ -1247,8 +1247,8 @@ packages:
       tough-cookie: '>=4.0.0'
     dependencies:
       axios: 1.6.8
-      http-cookie-agent: 6.0.1(tough-cookie@4.1.3)
-      tough-cookie: 4.1.3
+      http-cookie-agent: 6.0.1(tough-cookie@4.1.4)
+      tough-cookie: 4.1.4
     transitivePeerDependencies:
       - deasync
       - supports-color
@@ -1494,7 +1494,7 @@ packages:
     dev: false
 
   /commander@9.5.0:
-    resolution: {integrity: sha512-KRs7WVDKg86PWiuAqhDrAQnTXZKraVcCc6vFdL14qrZ/DcWwuRo7VoiYXalXO7S5GKpqYiVEwCbgFDfxNHKJBQ==, tarball: https://registry.npmmirror.com/commander/-/commander-9.5.0.tgz}
+    resolution: {integrity: sha512-KRs7WVDKg86PWiuAqhDrAQnTXZKraVcCc6vFdL14qrZ/DcWwuRo7VoiYXalXO7S5GKpqYiVEwCbgFDfxNHKJBQ==}
     engines: {node: ^12.20.0 || >=14}
     requiresBuild: true
     dev: false
@@ -1711,7 +1711,7 @@ packages:
     dev: true
 
   /emoji-regex@8.0.0:
-    resolution: {integrity: sha512-MSjYzcWNOA0ewAHpz0MxpYFvwg6yjy1NG3xteoqz644VCo/RPgnr1/GGt+ic3iJTzQ8Eu3TdM14SawnVUmGE6A==, tarball: https://registry.npmmirror.com/emoji-regex/-/emoji-regex-8.0.0.tgz}
+    resolution: {integrity: sha512-MSjYzcWNOA0ewAHpz0MxpYFvwg6yjy1NG3xteoqz644VCo/RPgnr1/GGt+ic3iJTzQ8Eu3TdM14SawnVUmGE6A==}
     dev: true
 
   /emoji-regex@9.2.2:
@@ -1856,7 +1856,7 @@ packages:
     dev: true
 
   /eslint-config-next@14.1.4(eslint@8.57.0)(typescript@5.4.3):
-    resolution: {integrity: sha512-cihIahbhYAWwXJwZkAaRPpUi5t9aOi/HdfWXOjZeUOqNWXHD8X22kd1KG58Dc3MVaRx3HoR/oMGk2ltcrqDn8g==, tarball: https://registry.npmmirror.com/eslint-config-next/-/eslint-config-next-14.1.4.tgz}
+    resolution: {integrity: sha512-cihIahbhYAWwXJwZkAaRPpUi5t9aOi/HdfWXOjZeUOqNWXHD8X22kd1KG58Dc3MVaRx3HoR/oMGk2ltcrqDn8g==}
     peerDependencies:
       eslint: ^7.23.0 || ^8.0.0
       typescript: '>=3.3.1'
@@ -2053,7 +2053,7 @@ packages:
     dev: true
 
   /eslint@8.57.0:
-    resolution: {integrity: sha512-dZ6+mexnaTIbSBZWgou51U6OmzIhYM2VcNdtiTtI7qPNZm35Akpr0f6vtw3w1Kmn5PYo+tZVfh13WrhpS6oLqQ==, tarball: https://registry.npmmirror.com/eslint/-/eslint-8.57.0.tgz}
+    resolution: {integrity: sha512-dZ6+mexnaTIbSBZWgou51U6OmzIhYM2VcNdtiTtI7qPNZm35Akpr0f6vtw3w1Kmn5PYo+tZVfh13WrhpS6oLqQ==}
     engines: {node: ^12.22.0 || ^14.17.0 || >=16.0.0}
     hasBin: true
     dependencies:
@@ -2310,7 +2310,7 @@ packages:
     resolution: {integrity: sha512-OO0pH2lK6a0hZnAdau5ItzHPI6pUlvI7jMVnxUQRtw4owF2wk8lOSabtGDCTP4Ggrg2MbGnWO9X8K1t4+fGMDw==, tarball: https://registry.npmmirror.com/fs.realpath/-/fs.realpath-1.0.0.tgz}
 
   /fsevents@2.3.3:
-    resolution: {integrity: sha512-5xoDfX+fL7faATnagmWPpbFtwh/R77WmMMqqHGS65C3vvB0YHrgF+B1YmZ3441tMj5n63k0212XNoJwzlhffQw==, tarball: https://registry.npmmirror.com/fsevents/-/fsevents-2.3.3.tgz}
+    resolution: {integrity: sha512-5xoDfX+fL7faATnagmWPpbFtwh/R77WmMMqqHGS65C3vvB0YHrgF+B1YmZ3441tMj5n63k0212XNoJwzlhffQw==}
     engines: {node: ^8.16.0 || ^10.6.0 || >=11.0.0}
     os: [darwin]
     requiresBuild: true
@@ -2538,7 +2538,7 @@ packages:
     resolution: {integrity: sha512-/sXbVCWayk6GDVg3ctOX6nxaVj7So40FcFAnWlWGNAB1LpYKcV5Cd10APjPjW80O7zYW2MsjBV4zZ7IZO5fVow==, tarball: https://registry.npmmirror.com/html-url-attributes/-/html-url-attributes-3.0.0.tgz}
     dev: false
 
-  /http-cookie-agent@6.0.1(tough-cookie@4.1.3):
+  /http-cookie-agent@6.0.1(tough-cookie@4.1.4):
     resolution: {integrity: sha512-AhPCqG7i3K8OVWORyuULoP7/Xv90wf14jBAKyLqjKpaJyGjutiwryYV+Lj1jqPYnQtbQFimwSaeY7NXw22TckQ==, tarball: https://registry.npmmirror.com/http-cookie-agent/-/http-cookie-agent-6.0.1.tgz}
     engines: {node: '>=18.0.0'}
     peerDependencies:
@@ -2552,7 +2552,7 @@ packages:
         optional: true
     dependencies:
       agent-base: 7.1.0
-      tough-cookie: 4.1.3
+      tough-cookie: 4.1.4
     transitivePeerDependencies:
       - supports-color
     dev: false
@@ -2727,7 +2727,7 @@ packages:
     dev: true
 
   /is-fullwidth-code-point@3.0.0:
-    resolution: {integrity: sha512-zymm5+u+sCsSWyD9qNaejV3DFvhCKclKdizYaJUuHA83RLjb7nSuGnddCHGv0hk+KY7BMAlsWeK4Ueg6EV6XQg==, tarball: https://registry.npmmirror.com/is-fullwidth-code-point/-/is-fullwidth-code-point-3.0.0.tgz}
+    resolution: {integrity: sha512-zymm5+u+sCsSWyD9qNaejV3DFvhCKclKdizYaJUuHA83RLjb7nSuGnddCHGv0hk+KY7BMAlsWeK4Ueg6EV6XQg==}
     engines: {node: '>=8'}
     dev: true
 
@@ -3644,7 +3644,7 @@ packages:
     dev: false
 
   /openapi-types@12.1.3:
-    resolution: {integrity: sha512-N4YtSYJqghVu4iek2ZUvcN/0aqH1kRDuNqzcycDxhOUpg7GdvLa2F3DgS6yBNhInhv2r/6I0Flkn7CqL8+nIcw==, tarball: https://registry.npmmirror.com/openapi-types/-/openapi-types-12.1.3.tgz}
+    resolution: {integrity: sha512-N4YtSYJqghVu4iek2ZUvcN/0aqH1kRDuNqzcycDxhOUpg7GdvLa2F3DgS6yBNhInhv2r/6I0Flkn7CqL8+nIcw==}
     dev: false
 
   /optionator@0.9.3:
@@ -4551,7 +4551,7 @@ packages:
     dev: false
 
   /string-width@4.2.3:
-    resolution: {integrity: sha512-wKyQRQpjJ0sIp62ErSZdGsjMJWsap5oRNihHhu6G7JVO/9jIB6UyevL+tXuOqrng8j/cxKTWyWUwvSTriiZz/g==, tarball: https://registry.npmmirror.com/string-width/-/string-width-4.2.3.tgz}
+    resolution: {integrity: sha512-wKyQRQpjJ0sIp62ErSZdGsjMJWsap5oRNihHhu6G7JVO/9jIB6UyevL+tXuOqrng8j/cxKTWyWUwvSTriiZz/g==}
     engines: {node: '>=8'}
     dependencies:
       emoji-regex: 8.0.0
@@ -4902,8 +4902,8 @@ packages:
     resolution: {integrity: sha512-BiZS+C1OS8g/q2RRbJmy59xpyghNBqrr6k5L/uKBGRsTfxmu3ffiRnd8mlGPUVayg8pvfi5urfnu8TU7DVOkLQ==, tarball: https://registry.npmmirror.com/toggle-selection/-/toggle-selection-1.0.6.tgz}
     dev: false
 
-  /tough-cookie@4.1.3:
-    resolution: {integrity: sha512-aX/y5pVRkfRnfmuX+OdbSdXvPe6ieKX/G2s7e98f4poJHnqH3281gDPm/metm6E/WRamfx7WC4HUqkWHfQHprw==, tarball: https://registry.npmmirror.com/tough-cookie/-/tough-cookie-4.1.3.tgz}
+  /tough-cookie@4.1.4:
+    resolution: {integrity: sha512-Loo5UUvLD9ScZ6jh8beX1T6sO1w2/MpCRpEP7V280GKMVUQ0Jzar2U3UJPsrdbziLEMMhu3Ujnq//rhiFuIeag==}
     engines: {node: '>=6'}
     dependencies:
       psl: 1.9.0
@@ -5271,7 +5271,7 @@ packages:
       isexe: 2.0.0
 
   /wrap-ansi@7.0.0:
-    resolution: {integrity: sha512-YVGIj2kamLSTxw6NsZjoBxfSwsn0ycdesmc4p+Q21c5zPuZ1pl+NfxVdxPtdHvmNVOQ6XSYG4AUtyt/Fi7D16Q==, tarball: https://registry.npmmirror.com/wrap-ansi/-/wrap-ansi-7.0.0.tgz}
+    resolution: {integrity: sha512-YVGIj2kamLSTxw6NsZjoBxfSwsn0ycdesmc4p+Q21c5zPuZ1pl+NfxVdxPtdHvmNVOQ6XSYG4AUtyt/Fi7D16Q==}
     engines: {node: '>=10'}
     dependencies:
       ansi-styles: 4.3.0
