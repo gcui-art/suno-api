@@ -124,6 +124,8 @@ Suno API currently mainly implements the following APIs:
     If no IDs are provided, all music will be returned.
 - `/api/get_limit`: Get quota Info
 - `/api/extend_audio`: Extend audio length
+- `/api/clip`: Get clip information based on ID passed as query parameter `id`
+- `/api/concat`: Generate the whole song from extensions
 ```
 
 For more detailed documentation, please check out the demo site:
@@ -167,6 +169,17 @@ def get_audio_information(audio_ids):
 def get_quota_information():
     url = f"{base_url}/api/get_limit"
     response = requests.get(url)
+    return response.json()
+
+def get_clip(clip_id):
+    url = f"{base_url}/api/clip?id={clip_id}"
+    response = requests.get(url)
+    return response.json()
+
+def generate_whole_song(clip_id):
+    payloyd = {"clip_id": clip_id}
+    url = f"{base_url}/api/concat"
+    response = requests.post(url, json=payload)
     return response.json()
 
 
@@ -235,6 +248,12 @@ async function getQuotaInformation() {
   return response.data;
 }
 
+async function getClipInformation(clipId) {
+  const url = `${baseUrl}/api/clip?id=${clipId}`;
+  const response = await axios.get(url);
+  return response.data;
+}
+
 async function main() {
   const data = await generateAudioByPrompt({
     prompt:
@@ -277,17 +296,22 @@ You can integrate Suno AI as a tool/plugin/action into your AI agent.
 
 [coming soon...]
 
-## Contribution Guidelines
+## Contributing
 
-Fork the project and submit a pull request.
+There are four ways you can support this project:
+
+1. Fork and Submit Pull Requests: We welcome any PRs that enhance the component or editor.
+2. Open Issues: We appreciate reasonable suggestions and bug reports.
+3. Donate: If this project has helped you, consider buying us a coffee using the Sponsor button at the top of the project. Cheers! ☕
+4. Spread the Word: Recommend this project to others, star the repo, or add a backlink after using the project.
+
+## Questions, Suggestions, Issues, or Bugs?
+
+We use GitHub Issues to manage feedback. Feel free to open an issue, and we'll address it promptly.
 
 ## License
 
 LGPL-3.0 or later
-
-## Contact Us
-
-- Contact us: <support@gcui.ai>
 
 ## Related Links
 

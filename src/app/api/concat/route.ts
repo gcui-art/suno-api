@@ -1,5 +1,5 @@
 import { NextResponse, NextRequest } from "next/server";
-import { DEFAULT_MODEL, sunoApi } from "@/lib/SunoApi";
+import { sunoApi } from "@/lib/SunoApi";
 import { corsHeaders } from "@/lib/utils";
 
 export const dynamic = "force-dynamic";
@@ -8,10 +8,9 @@ export async function POST(req: NextRequest) {
   if (req.method === 'POST') {
     try {
       const body = await req.json();
-      const { prompt, make_instrumental, model, wait_audio } = body;
-
-      if (!prompt) {
-        return new NextResponse(JSON.stringify({ error: 'Prompt is required' }), {
+      const { clip_id } = body;
+      if (!clip_id) {
+        return new NextResponse(JSON.stringify({ error: 'Clip id is required' }), {
           status: 400,
           headers: {
             'Content-Type': 'application/json',
@@ -19,14 +18,7 @@ export async function POST(req: NextRequest) {
           }
         });
       }
-
-      const audioInfo = await (await sunoApi).generate(
-        prompt,
-        make_instrumental == true,
-        model || DEFAULT_MODEL,
-        wait_audio == true
-      );
-
+      const audioInfo = await (await sunoApi).concatenate(clip_id);
       return new NextResponse(JSON.stringify(audioInfo), {
         status: 200,
         headers: {
@@ -35,7 +27,7 @@ export async function POST(req: NextRequest) {
         }
       });
     } catch (error: any) {
-      console.error('Error generating custom audio:', JSON.stringify(error.response.data));
+      console.error('Error generating concatenating audio:', error.response.data);
       if (error.response.status === 402) {
         return new NextResponse(JSON.stringify({ error: error.response.data.detail }), {
           status: 402,
@@ -45,7 +37,7 @@ export async function POST(req: NextRequest) {
           }
         });
       }
-      return new NextResponse(JSON.stringify({ error: 'Internal server error: ' + JSON.stringify(error.response.data.detail) }), {
+      return new NextResponse(JSON.stringify({ error: 'Internal server error' }), {
         status: 500,
         headers: {
           'Content-Type': 'application/json',
@@ -63,7 +55,6 @@ export async function POST(req: NextRequest) {
     });
   }
 }
-
 
 export async function OPTIONS(request: Request) {
   return new Response(null, {
