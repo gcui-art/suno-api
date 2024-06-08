@@ -312,6 +312,7 @@ class SunoApi {
       tags: tags,
       title: title
     });
+    console.log("response：\n", response);
     return response.data;
   }
 

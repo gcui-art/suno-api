@@ -22,9 +22,9 @@ export async function POST(req: NextRequest) {
 
       const audioInfo = await (await sunoApi).generate(
         prompt,
-        make_instrumental == true,
+        Boolean(make_instrumental),
         model || DEFAULT_MODEL,
-        wait_audio == true
+        Boolean(wait_audio)
       );
 
       return new NextResponse(JSON.stringify(audioInfo), {
