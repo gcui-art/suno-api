@@ -33,6 +33,11 @@
                     "description": "Whether to generate instrumental music",
                     "example": "false"
                   },
+                  "model": {
+                    "type": "string",
+                    "description": "Model name ,default is chirp-v3-5",
+                    "example": "chirp-v3-5|chirp-v3-0"
+                  },
                   "wait_audio": {
                     "type": "boolean",
                     "description": "Whether to wait for music generation, default is false, directly return audio task information; set to true, will wait for up to 100s until the audio is generated.",
@@ -79,7 +84,7 @@
             "application/json": {
               "schema": {
                 "type": "object",
-                "required": ["prompt", "make_instrumental", "wait_audio"],
+                "required": ["prompt"],
                 "properties": {
                   "prompt": {
                     "type": "string",
@@ -143,6 +148,11 @@
                     "description": "Whether to generate instrumental music",
                     "example": "false"
                   },
+                  "model": {
+                    "type": "string",
+                    "description": "Model name ,default is chirp-v3-5",
+                    "example": "chirp-v3-5|chirp-v3-0"
+                  },
                   "wait_audio": {
                     "type": "boolean",
                     "description": "Whether to wait for music generation, default is false, directly return audio task information; set to true, will wait for up to 100s until the audio is generated.",
@@ -199,7 +209,7 @@
                   "prompt": {
                     "type": "string",
                     "description": "Detailed prompt, including information such as music lyrics.",
-                    "example": ""
+                    "example": "[lrc]Silent battlegrounds, no birds' song\nShadows of war, where we don't belong\nMay flowers of peace bloom in this place\nLet's guard this precious dream with grace\n[endlrc]"
                   },
                   "continue_at": {
                     "type": "string",
@@ -215,6 +225,11 @@
                     "type": "string",
                     "description": "Music genre",
                     "example": ""
+                  },
+                  "model": {
+                    "type": "string",
+                    "description": "Model name ,default is chirp-v3-5",
+                    "example": "chirp-v3-5|chirp-v3-0"
                   }
                 }
               }
@@ -349,6 +364,151 @@
                     "monthly_usage": {
                       "type": "number",
                       "description": "Monthly usage"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/clip": {
+      "get": {
+        "summary": "Get clip information based on ID.",
+        "description": "Retrieve specific clip information using the provided clip ID as a query parameter.",
+        "tags": ["default"],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "query",
+            "required": true,
+            "description": "Clip ID",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/audio_info"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Missing parameter id",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "string",
+                      "example": "Missing parameter id"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "string",
+                      "example": "Internal server error"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/concat": {
+      "post": {
+        "summary": "Generate the whole song from extensions.",
+        "description": "Concatenate audio clips to generate a complete song using the provided clip ID.",
+        "tags": ["default"],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["clip_id"],
+                "properties": {
+                  "clip_id": {
+                    "type": "string",
+                    "description": "Clip ID"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/audio_info"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Clip id is required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "string",
+                      "example": "Clip id is required"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "402": {
+            "description": "Payment required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "string",
+                      "example": "Payment required"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "string",
+                      "example": "Internal server error"
                     }
                   }
                 }
