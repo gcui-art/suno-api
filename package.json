@@ -2,7 +2,7 @@
   "name": "suno-api",
   "description": "Use API to call the music generation service of suno.ai, and easily integrate it into agents like GPTs.",
   "author": {
-    "name": "gcui.art",
+    "name": "gcui.ai",
     "url": "https://github.com/gcui-art/"
   },
   "license": "LGPL-3.0-or-later",
