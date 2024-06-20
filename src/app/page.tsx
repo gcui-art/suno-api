@@ -89,7 +89,7 @@ it means the program is running normally.
 
 ### 5. Use Suno API
 
-You can check out the detailed API documentation at [suno.gcui.art/docs](https://suno.gcui.art/docs).
+You can check out the detailed API documentation at [suno.gcui.ai/docs](https://suno.gcui.ai/docs).
 
 ## 📚 API Reference
 
@@ -111,7 +111,7 @@ Suno API currently mainly implements the following APIs:
 
 For more detailed documentation, please check out the demo site:
 
-👉 [suno.gcui.art/docs](https://suno.gcui.art/docs)
+👉 [suno.gcui.ai/docs](https://suno.gcui.ai/docs)
 
 `;
   return (
