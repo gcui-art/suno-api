@@ -1,5 +1,5 @@
 import { NextResponse, NextRequest } from "next/server";
-import { sunoApi } from "@/lib/SunoApi";
+import { DEFAULT_MODEL, sunoApi } from "@/lib/SunoApi";
 import { corsHeaders } from "@/lib/utils";
 
 export const dynamic = "force-dynamic";
@@ -8,7 +8,7 @@ export async function POST(req: NextRequest) {
   if (req.method === 'POST') {
     try {
       const body = await req.json();
-      const { prompt, make_instrumental, wait_audio } = body;
+      const { prompt, make_instrumental, model, wait_audio } = body;
 
       if (!prompt) {
         return new NextResponse(JSON.stringify({ error: 'Prompt is required' }), {
@@ -20,7 +20,12 @@ export async function POST(req: NextRequest) {
         });
       }
 
-      const audioInfo = await (await sunoApi).generate(prompt, make_instrumental == true, wait_audio == true);
+      const audioInfo = await (await sunoApi).generate(
+        prompt,
+        Boolean(make_instrumental),
+        model || DEFAULT_MODEL,
+        Boolean(wait_audio)
+      );
 
       return new NextResponse(JSON.stringify(audioInfo), {
         status: 200,
