@@ -259,7 +259,7 @@ class SunoApi {
         prompt: audio.metadata.prompt,
         type: audio.metadata.type,
         tags: audio.metadata.tags,
-        duration: audio.metadata.duration_formatted,
+        duration: audio.metadata.duration,
       }));
     }
   }
@@ -367,7 +367,7 @@ class SunoApi {
       prompt: audio.metadata.prompt,
       type: audio.metadata.type,
       tags: audio.metadata.tags,
-      duration: audio.metadata.duration_formatted,
+      duration: audio.metadata.duration,  
       error_message: audio.metadata.error_message,
     }));
   }
