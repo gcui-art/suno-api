@@ -10,16 +10,6 @@ export async function POST(req: NextRequest) {
       const body = await req.json();
       const { prompt } = body;
 
-      if (!prompt) {
-        return new NextResponse(JSON.stringify({ error: 'Prompt is required' }), {
-          status: 400,
-          headers: {
-            'Content-Type': 'application/json',
-            ...corsHeaders
-          }
-        });
-      }
-
       const lyrics = await (await sunoApi).generateLyrics(prompt);
 
       return new NextResponse(JSON.stringify(lyrics), {
