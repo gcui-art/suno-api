@@ -318,6 +318,7 @@ LGPL-3.0 or later
 - Project repository: [github.com/gcui-art/suno-api](https://github.com/gcui-art/suno-api)
 - Suno.ai official website: [suno.ai](https://suno.ai)
 - Demo: [suno.gcui.ai](https://suno.gcui.ai)
+- Album AI: [Auto generate image metadata and chat with the album. RAG + Album.](https://github.com/gcui-art/album-ai)
 
 ## Statement
 
