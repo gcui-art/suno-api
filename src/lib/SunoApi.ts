@@ -19,7 +19,7 @@ export interface AudioInfo {
   created_at: string; // Date and time when the audio was created
   model_name: string; // Name of the model used for audio generation
   gpt_description_prompt?: string; // Prompt for GPT description
-  prompt?: string; // Prompt for audio generation
+  prompt?: string; // Prompt for audio generation 
   status: string; // Status
   type?: string;
   tags?: string; // Genre of music.
@@ -65,7 +65,7 @@ class SunoApi {
    */
   private async getAuthToken() {
     // URL to get session ID
-    const getSessionUrl = `${SunoApi.CLERK_BASE_URL}/v1/client?_clerk_js_version=4.73.3`;
+    const getSessionUrl = `${SunoApi.CLERK_BASE_URL}/v1/client?_clerk_js_version=4.73.4`; 
     // Get session ID
     const sessionResponse = await this.client.get(getSessionUrl);
     if (!sessionResponse?.data?.response?.['last_active_session_id']) {
@@ -84,7 +84,7 @@ class SunoApi {
       throw new Error("Session ID is not set. Cannot renew token.");
     }
     // URL to renew session token
-    const renewUrl = `${SunoApi.CLERK_BASE_URL}/v1/client/sessions/${this.sid}/tokens?_clerk_js_version==4.73.3`;
+    const renewUrl = `${SunoApi.CLERK_BASE_URL}/v1/client/sessions/${this.sid}/tokens?_clerk_js_version==4.73.4`; 
     // Renew session token
     const renewResponse = await this.client.post(renewUrl);
     logger.info("KeepAlive...\n");
