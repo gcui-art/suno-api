@@ -138,6 +138,11 @@
                     "description": "Music genre",
                     "example": "pop metal male melancholic"
                   },
+                  "negative_tags": {
+                    "type": "string",
+                    "description": "Negative Music genre",
+                    "example": "female edm techno"
+                  },
                   "title": {
                     "type": "string",
                     "description": "Music title",

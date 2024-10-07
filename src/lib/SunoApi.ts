@@ -23,6 +23,7 @@ export interface AudioInfo {
   status: string; // Status
   type?: string;
   tags?: string; // Genre of music.
+  negative_tags?: string; // Negative tags of music.
   duration?: string; // Duration of the audio
   error_message?: string; // Error message if any
 }
@@ -150,23 +151,25 @@ class SunoApi {
    * @param title The title for the generated audio.
    * @param make_instrumental Indicates if the generated audio should be instrumental.
    * @param wait_audio Indicates if the method should wait for the audio file to be fully generated before returning.
+   * @param negative_tags Negative tags that should not be included in the generated audio.
    * @returns A promise that resolves to an array of AudioInfo objects representing the generated audios.
    */
-  public async custom_generate(
-    prompt: string,
-    tags: string,
-    title: string,
-    make_instrumental: boolean = false,
-    model?: string,
-    wait_audio: boolean = false,
-  ): Promise<AudioInfo[]> {
-    const startTime = Date.now();
-    const audios = await this.generateSongs(prompt, true, tags, title, make_instrumental, model, wait_audio);
-    const costTime = Date.now() - startTime;
-    logger.info("Custom Generate Response:\n" + JSON.stringify(audios, null, 2));
-    logger.info("Cost time: " + costTime);
-    return audios;
-  }
+public async custom_generate(
+  prompt: string,
+  tags: string,
+  title: string,
+  make_instrumental: boolean = false,
+  model?: string,
+  wait_audio: boolean = false,
+  negative_tags?: string,
+): Promise<AudioInfo[]> {
+  const startTime = Date.now();
+  const audios = await this.generateSongs(prompt, true, tags, title, make_instrumental, model, wait_audio, negative_tags);
+  const costTime = Date.now() - startTime;
+  logger.info("Custom Generate Response:\n" + JSON.stringify(audios, null, 2));
+  logger.info("Cost time: " + costTime);
+  return audios;
+}
 
   /**
    * Generates songs based on the provided parameters.
@@ -177,6 +180,7 @@ class SunoApi {
    * @param title Optional title for the song, used only if isCustom is true.
    * @param make_instrumental Indicates if the generated song should be instrumental.
    * @param wait_audio Indicates if the method should wait for the audio file to be fully generated before returning.
+   * @param negative_tags Negative tags that should not be included in the generated audio.
    * @returns A promise that resolves to an array of AudioInfo objects representing the generated songs.
    */
   private async generateSongs(
@@ -186,7 +190,8 @@ class SunoApi {
     title?: string,
     make_instrumental?: boolean,
     model?: string,
-    wait_audio: boolean = false
+    wait_audio: boolean = false,
+    negative_tags?: string,
   ): Promise<AudioInfo[]> {
     await this.keepAlive(false);
     const payload: any = {
@@ -197,6 +202,7 @@ class SunoApi {
     if (isCustom) {
       payload.tags = tags;
       payload.title = title;
+      payload.negative_tags = negative_tags;
       payload.prompt = prompt;
     } else {
       payload.gpt_description_prompt = prompt;
@@ -208,6 +214,7 @@ class SunoApi {
       title: title,
       make_instrumental: make_instrumental,
       wait_audio: wait_audio,
+      negative_tags: negative_tags,
       payload: payload,
     }, null, 2));
     const response = await this.client.post(
@@ -259,6 +266,7 @@ class SunoApi {
         prompt: audio.metadata.prompt,
         type: audio.metadata.type,
         tags: audio.metadata.tags,
+        negative_tags: audio.metadata.negative_tags,
         duration: audio.metadata.duration,
       }));
     }

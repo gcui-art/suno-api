@@ -9,12 +9,13 @@ export async function POST(req: NextRequest) {
   if (req.method === 'POST') {
     try {
       const body = await req.json();
-      const { prompt, tags, title, make_instrumental, model, wait_audio } = body;
+      const { prompt, tags, title, make_instrumental, model, wait_audio, negative_tags } = body;
       const audioInfo = await (await sunoApi).custom_generate(
         prompt, tags, title,
         Boolean(make_instrumental),
         model || DEFAULT_MODEL,
-        Boolean(wait_audio)
+        Boolean(wait_audio),
+        negative_tags
       );
       return new NextResponse(JSON.stringify(audioInfo), {
         status: 200,
