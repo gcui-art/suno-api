@@ -30,8 +30,10 @@ export interface AudioInfo {
 class SunoApi {
   private static BASE_URL: string = 'https://studio-api.suno.ai';
   private static CLERK_BASE_URL: string = 'https://clerk.suno.com';
+  private static JSDELIVR_BASE_URL: string = 'https://data.jsdelivr.com';
 
   private readonly client: AxiosInstance;
+  private clerkVersion?: string;
   private sid?: string;
   private currentToken?: string;
 
@@ -55,9 +57,26 @@ class SunoApi {
   }
 
   public async init(): Promise<SunoApi> {
+    await this.getClerkLatestVersion();
     await this.getAuthToken();
     await this.keepAlive();
     return this;
+  }
+
+  /**
+   * Get the clerk package latest version id.
+   */
+  private async getClerkLatestVersion() {
+    // URL to get clerk version ID
+    const getClerkVersionUrl = `${SunoApi.JSDELIVR_BASE_URL}/v1/package/npm/@clerk/clerk-js`; 
+    // Get clerk version ID
+    const versionListResponse = await this.client.get(getClerkVersionUrl);
+    if (!versionListResponse?.data?.['tags']['latest']) {
+      throw new Error("Failed to get clerk version info, Please try again later");
+    }
+    // Save clerk version ID for auth
+    this.clerkVersion = versionListResponse?.data?.['tags']['latest'];
+    console.log(this.clerkVersion)
   }
 
   /**
@@ -65,7 +84,7 @@ class SunoApi {
    */
   private async getAuthToken() {
     // URL to get session ID
-    const getSessionUrl = `${SunoApi.CLERK_BASE_URL}/v1/client?_clerk_js_version=4.73.4`; 
+    const getSessionUrl = `${SunoApi.CLERK_BASE_URL}/v1/client?_clerk_js_version=${this.clerkVersion}`; 
     // Get session ID
     const sessionResponse = await this.client.get(getSessionUrl);
     if (!sessionResponse?.data?.response?.['last_active_session_id']) {
@@ -84,7 +103,7 @@ class SunoApi {
       throw new Error("Session ID is not set. Cannot renew token.");
     }
     // URL to renew session token
-    const renewUrl = `${SunoApi.CLERK_BASE_URL}/v1/client/sessions/${this.sid}/tokens?_clerk_js_version==4.73.4`; 
+    const renewUrl = `${SunoApi.CLERK_BASE_URL}/v1/client/sessions/${this.sid}/tokens?_clerk_js_version==${this.clerkVersion}`; 
     // Renew session token
     const renewResponse = await this.client.post(renewUrl);
     logger.info("KeepAlive...\n");
