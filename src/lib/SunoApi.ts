@@ -76,7 +76,6 @@ class SunoApi {
     }
     // Save clerk version ID for auth
     this.clerkVersion = versionListResponse?.data?.['tags']['latest'];
-    console.log(this.clerkVersion)
   }
 
   /**
