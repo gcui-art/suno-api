@@ -298,6 +298,7 @@ LGPL-3.0 或更高版本
 - 项目仓库: [github.com/gcui-art/suno-api](https://github.com/gcui-art/suno-api)
 - Suno.ai 官网: [suno.ai](https://suno.ai)
 - 演示站点: [suno.gcui.ai](https://suno.gcui.ai)
+- [Readpo](https://readpo.com?utm_source=github&utm_medium=suno-api): ReadPo 是 AI 驱动的读写助手。以闪电般的速度收集信息并筛选，创建引人入胜的内容。
 
 ## 声明
 
