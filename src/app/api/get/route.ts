@@ -1,20 +1,22 @@
-import { NextResponse, NextRequest } from "next/server";
-import { sunoApi } from "@/lib/SunoApi";
-import { corsHeaders } from "@/lib/utils";
+import { NextResponse, NextRequest } from 'next/server';
+import { sunoApi } from '@/lib/SunoApi';
+import { corsHeaders } from '@/lib/utils';
 
-export const dynamic = "force-dynamic";
+export const dynamic = 'force-dynamic';
 
 export async function GET(req: NextRequest) {
   if (req.method === 'GET') {
     try {
       const url = new URL(req.url);
       const songIds = url.searchParams.get('ids');
+      const page = url.searchParams.get('page');
+
       let audioInfo = [];
       if (songIds && songIds.length > 0) {
         const idsArray = songIds.split(',');
-        audioInfo = await (await sunoApi).get(idsArray);
+        audioInfo = await (await sunoApi).get(idsArray, page);
       } else {
-        audioInfo = await (await sunoApi).get();
+        audioInfo = await (await sunoApi).get(undefined, page);
       }
 
       return new NextResponse(JSON.stringify(audioInfo), {
@@ -27,13 +29,16 @@ export async function GET(req: NextRequest) {
     } catch (error) {
       console.error('Error fetching audio:', error);
 
-      return new NextResponse(JSON.stringify({ error: 'Internal server error' }), {
-        status: 500,
-        headers: {
-          'Content-Type': 'application/json',
-          ...corsHeaders
+      return new NextResponse(
+        JSON.stringify({ error: 'Internal server error' }),
+        {
+          status: 500,
+          headers: {
+            'Content-Type': 'application/json',
+            ...corsHeaders
+          }
         }
-      });
+      );
     }
   } else {
     return new NextResponse('Method Not Allowed', {
