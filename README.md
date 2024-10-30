@@ -87,7 +87,7 @@ docker compose build && docker compose up
 SUNO_COOKIE=<your-cookie>
 ```
 
-### 4. Run suno api
+### 4. Run suno API
 
 - If you’ve deployed to Vercel:
   - Please click on Deploy in the Vercel dashboard and wait for the deployment to be successful.
