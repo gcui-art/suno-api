@@ -377,6 +377,7 @@ class SunoApi {
         mv: model || DEFAULT_MODEL,
         prompt: prompt,
         tags: tags,
+        task: 'extend',
         title: title
       }
     );
