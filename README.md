@@ -127,6 +127,7 @@ Suno API currently mainly implements the following APIs:
 - `/api/get_limit`: Get quota Info
 - `/api/extend_audio`: Extend audio length
 - `/api/generate_stems`: Make stem tracks (separate audio and music track)
+- `/api/get_aligned_lyrics`: Get list of timestamps for each word in the lyrics
 - `/api/clip`: Get clip information based on ID passed as query parameter `id`
 - `/api/concat`: Generate the whole song from extensions
 ```

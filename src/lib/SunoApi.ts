@@ -389,18 +389,39 @@ class SunoApi {
    * @returns A promise that resolves to an AudioInfo object representing the generated stems.
    */
   public async generateStems(song_id: string): Promise<AudioInfo[]> {
+    await this.keepAlive(false);
     const response = await this.client.post(
       `${SunoApi.BASE_URL}/api/edit/stems/${song_id}`, {}
     );
+
     console.log('generateStems response:\n', response?.data);
     return response.data.clips.map((clip: any) => ({
       id: clip.id,
       status: clip.status,
-      metadata: clip.metadata,
       created_at: clip.created_at,
       title: clip.title,
       stem_from_id: clip.metadata.stem_from_id,
       duration: clip.metadata.duration
+    }));
+  }
+
+
+  /**
+   * Get the lyric alignment for a song.
+   * @param song_id The ID of the song to get the lyric alignment for.
+   * @returns A promise that resolves to an object containing the lyric alignment.
+   */
+  public async getLyricAlignment(song_id: string): Promise<object> {
+    await this.keepAlive(false);
+    const response = await this.client.get(`${SunoApi.BASE_URL}/api/gen/${song_id}/aligned_lyrics/v2/`);
+
+    console.log(`getLyricAlignment ~ response:`, response.data);
+    return response.data?.aligned_words.map((transcribedWord: any) => ({
+      word: transcribedWord.word,
+      start_s: transcribedWord.start_s,
+      end_s: transcribedWord.end_s,
+      success: transcribedWord.success,
+      p_align: transcribedWord.p_align
     }));
   }
 

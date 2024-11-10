@@ -416,6 +416,29 @@
         }
       }
     },
+    "/api/get_aligned_lyrics": {
+      "get": {
+        "summary": "Get lyric alignment.",
+        "description": "Get lyric alignment.",
+        "tags": ["default"],
+        "parameters": [
+          {
+            "name": "song_id",
+            "in": "query",
+            "required": true,
+            "description": "Song ID",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "$ref": "#/components/schemas/audio_info"
+          }
+        }
+      }
+    },
     "/api/clip": {
       "get": {
         "summary": "Get clip information based on ID.",
