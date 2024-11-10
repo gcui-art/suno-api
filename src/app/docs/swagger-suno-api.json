@@ -243,6 +243,35 @@
         }
       }
     },
+    "/api/generate_stems": {
+      "post": {
+        "summary": "Make stem tracks (separate audio and music track).",
+        "description": "Make stem tracks (separate audio and music track).",
+        "tags": ["default"],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["audio_id"],
+                "properties": {
+                  "audio_id": {
+                    "type": "string",
+                    "description": "The ID of the song to generate stems for.",
+                    "example": "e76498dc-6ab4-4a10-a19f-8a095790e28d"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "$ref": "#/components/schemas/audio_info"
+          }
+        }
+      }
+    },
     "/api/generate_lyrics": {
       "post": {
         "summary": "Generate lyrics based on Prompt.",

@@ -384,6 +384,27 @@ class SunoApi {
   }
 
   /**
+   * Generate stems for a song.
+   * @param song_id The ID of the song to generate stems for.
+   * @returns A promise that resolves to an AudioInfo object representing the generated stems.
+   */
+  public async generateStems(song_id: string): Promise<AudioInfo[]> {
+    const response = await this.client.post(
+      `${SunoApi.BASE_URL}/api/edit/stems/${song_id}`, {}
+    );
+    console.log('generateStems response:\n', response?.data);
+    return response.data.clips.map((clip: any) => ({
+      id: clip.id,
+      status: clip.status,
+      metadata: clip.metadata,
+      created_at: clip.created_at,
+      title: clip.title,
+      stem_from_id: clip.metadata.stem_from_id,
+      duration: clip.metadata.duration
+    }));
+  }
+
+  /**
    * Processes the lyrics (prompt) from the audio metadata into a more readable format.
    * @param prompt The original lyrics text.
    * @returns The processed lyrics text.
