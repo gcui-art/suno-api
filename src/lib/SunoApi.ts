@@ -28,7 +28,7 @@ export interface AudioInfo {
 }
 
 class SunoApi {
-  private static BASE_URL: string = 'https://studio-api.suno.ai';
+  private static BASE_URL: string = 'https://studio-api.prod.suno.com';
   private static CLERK_BASE_URL: string = 'https://clerk.suno.com';
   private static JSDELIVR_BASE_URL: string = 'https://data.jsdelivr.com';
 
@@ -237,9 +237,10 @@ class SunoApi {
   ): Promise<AudioInfo[]> {
     await this.keepAlive(false);
     const payload: any = {
-      make_instrumental: make_instrumental == true,
+      make_instrumental: make_instrumental,
       mv: model || DEFAULT_MODEL,
-      prompt: ''
+      prompt: '',
+      generation_type: 'TEXT'
     };
     if (isCustom) {
       payload.tags = tags;
