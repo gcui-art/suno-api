@@ -123,6 +123,8 @@ Suno API 目前主要实现了以下 API:
 - `/api/get`: 根据id获取音乐信息。获取多个请用","分隔，不传ids则返回所有音乐
 - `/api/get_limit`: 获取配额信息
 - `/api/extend_audio`: 在一首音乐的基础上，扩展音乐长度
+- `/api/generate_stems`: 制作主干轨道（单独的音频和音乐轨道
+- `/api/get_aligned_lyrics`: 获取歌词中每个单词的时间戳列表
 - `/api/clip`: 检索特定音乐的信息
 - `/api/concat`: 合并音乐，将扩展后的音乐和原始音乐合并
 ```
