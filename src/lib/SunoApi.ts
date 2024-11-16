@@ -368,6 +368,7 @@ class SunoApi {
     title: string = '',
     model?: string
   ): Promise<AudioInfo> {
+    await this.keepAlive(false);
     const response = await this.client.post(
       `${SunoApi.BASE_URL}/api/generate/v2/`,
       {
@@ -376,6 +377,7 @@ class SunoApi {
         mv: model || DEFAULT_MODEL,
         prompt: prompt,
         tags: tags,
+        task: 'extend',
         title: title
       }
     );
