@@ -80,7 +80,9 @@ class SunoApi {
       );
     }
     // Save clerk version ID for auth
-    this.clerkVersion = versionListResponse?.data?.['tags']['latest'];
+    // this.clerkVersion = versionListResponse?.data?.['tags']['latest'];
+    // Use a Clerk version released before fraud detection was implemented
+    this.clerkVersion = "5.34.0";
   }
 
   /**
