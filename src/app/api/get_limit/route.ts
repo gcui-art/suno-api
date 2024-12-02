@@ -7,9 +7,7 @@ export const dynamic = "force-dynamic";
 export async function GET(req: NextRequest) {
   if (req.method === 'GET') {
     try {
-
       const limit = await (await sunoApi).get_credits();
-
 
       return new NextResponse(JSON.stringify(limit), {
         status: 200,
@@ -18,10 +16,18 @@ export async function GET(req: NextRequest) {
           ...corsHeaders
         }
       });
-    } catch (error) {
-      console.error('Error fetching limit:', error);
-
-      return new NextResponse(JSON.stringify({ error: 'Internal server error. ' + error }), {
+    } catch (error: any) {
+      console.error('Error fetching limit:', error.response?.data || error.message);
+      if (error.response?.status === 402) {
+        return new NextResponse(JSON.stringify({ error: error.response.data.detail }), {
+          status: 402,
+          headers: {
+            'Content-Type': 'application/json',
+            ...corsHeaders
+          }
+        });
+      }
+      return new NextResponse(JSON.stringify({ error: 'Internal server error: ' + JSON.stringify(error.response?.data || error.message) }), {
         status: 500,
         headers: {
           'Content-Type': 'application/json',

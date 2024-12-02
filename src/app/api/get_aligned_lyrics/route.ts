@@ -22,7 +22,6 @@ export async function GET(req: NextRequest) {
 
       const lyricAlignment = await (await sunoApi).getLyricAlignment(song_id);
 
-
       return new NextResponse(JSON.stringify(lyricAlignment), {
         status: 200,
         headers: {
@@ -30,10 +29,18 @@ export async function GET(req: NextRequest) {
           ...corsHeaders
         }
       });
-    } catch (error) {
-      console.error('Error fetching lyric alignment:', error);
-
-      return new NextResponse(JSON.stringify({ error: 'Internal server error. ' + error }), {
+    } catch (error: any) {
+      console.error('Error fetching lyric alignment:', error.response?.data || error.message);
+      if (error.response?.status === 402) {
+        return new NextResponse(JSON.stringify({ error: error.response.data.detail }), {
+          status: 402,
+          headers: {
+            'Content-Type': 'application/json',
+            ...corsHeaders
+          }
+        });
+      }
+      return new NextResponse(JSON.stringify({ error: 'Internal server error: ' + JSON.stringify(error.response?.data || error.message) }), {
         status: 500,
         headers: {
           'Content-Type': 'application/json',
