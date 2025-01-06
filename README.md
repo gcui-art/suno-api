@@ -329,7 +329,7 @@ You can integrate Suno AI as a tool/plugin/action into your AI agent.
 
 There are four ways you can support this project:
 
-1. Fork and Submit Pull Requests: We welcome any PRs that enhances the functionality, APIs, response time and availability. You can also help us just by translating this README into your language—any help for this project is welcome!
+1. Fork and Submit Pull Requests: We welcome any PRs that enhance the functionality, APIs, response time and availability. You can also help us just by translating this README into your language—any help for this project is welcome!
 2. Open Issues: We appreciate reasonable suggestions and bug reports.
 3. Donate: If this project has helped you, consider buying us a coffee using the Sponsor button at the top of the project. Cheers! ☕
 4. Spread the Word: Recommend this project to others, star the repo, or add a backlink after using the project.

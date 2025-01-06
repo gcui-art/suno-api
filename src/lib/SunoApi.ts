@@ -156,7 +156,6 @@ class SunoApi {
     const newToken = renewResponse.data.jwt;
     // Update Authorization field in request header with the new JWT token
     this.currentToken = newToken;
-    logger.info(this.currentToken);
   }
 
   /**
@@ -277,9 +276,6 @@ class SunoApi {
     const browser = await this.launchBrowser();
     const page = await browser.newPage();
     await page.goto('https://suno.com/create', { referer: 'https://www.google.com/', waitUntil: 'domcontentloaded', timeout: 0 });
-
-    page.on('request', request => console.log('>>', request.method(), request.url()));
-    page.on('response', response => console.log('<<', response.status(), response.url()));
 
     logger.info('Waiting for Suno interface to load');
     await page.locator('.react-aria-GridList').waitFor({ timeout: 60000 });
