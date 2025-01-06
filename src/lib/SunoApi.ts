@@ -8,6 +8,9 @@ import { randomUUID } from 'node:crypto';
 import { Solver } from '@2captcha/captcha-solver';
 import { BrowserContext, Page, Locator, chromium, firefox } from 'rebrowser-playwright-core';
 import { createCursor, Cursor } from 'ghost-cursor-playwright';
+import { paramsCoordinates } from '@2captcha/captcha-solver/dist/structs/2captcha';
+import { promises as fs } from 'fs';
+import path from 'node:path';
 
 // sunoApi instance caching
 const globalForSunoApi = global as unknown as { sunoApiCache?: Map<string, SunoApi> };
@@ -278,7 +281,8 @@ class SunoApi {
     await page.goto('https://suno.com/create', { referer: 'https://www.google.com/', waitUntil: 'domcontentloaded', timeout: 0 });
 
     logger.info('Waiting for Suno interface to load');
-    await page.locator('.react-aria-GridList').waitFor({ timeout: 60000 });
+    //await page.locator('.react-aria-GridList').waitFor({ timeout: 60000 });
+    await page.waitForResponse('**/api/feed/v2**', { timeout: 60000 }); // wait for song list API call
 
     if (this.ghostCursorEnabled)
       this.cursor = await createCursor(page);
@@ -306,21 +310,21 @@ class SunoApi {
               break
             }
           }
-          //await sleep(0.1); // sometimes it takes a couple of seconds to display the image itself. unfortunately, the only option is to wait and hope that it loads
           const drag = (await challenge.locator('.prompt-text').first().innerText()).toLowerCase().includes('drag');
-          if (drag) {
-            logger.info('Got a dragging hCaptcha. This type of hCaptcha is currently not supported. Skipping...');
-            this.click(frame.locator('.button-submit'));
-            continue;
-          }
           let captcha: any;
           for (let j = 0; j < 3; j++) { // try several times because sometimes 2Captcha could send an error
             try {
               logger.info('Sending the CAPTCHA to 2Captcha');
-              captcha = await this.solver.coordinates({
+              const payload: paramsCoordinates = {
                 body: (await challenge.screenshot()).toString('base64'),
                 lang: process.env.BROWSER_LOCALE
-              });
+              };
+              if (drag) {
+                // Say to the worker that he needs to click
+                payload.textinstructions = '! Instead of dragging, CLICK on the shapes as shown in the image above !';
+                payload.imginstructions = (await fs.readFile(path.join(process.cwd(), 'public', 'drag-instructions.jpg'))).toString('base64');
+              }
+              captcha = await this.solver.coordinates(payload);
               break;
             } catch(err: any) {
               logger.info(err.message);
@@ -330,9 +334,25 @@ class SunoApi {
                 throw err;
             }
           }
-          for (const data of captcha.data) {
-            logger.info(data);
-            await this.click(challenge, { x: +data.x, y: +data.y });
+          if (drag) {
+            const challengeBox = await challenge.boundingBox();
+            if (challengeBox == null)
+              throw new Error('.challenge-container boundingBox is null!');
+            for (let i = 0; i < captcha.data.length; i += 2) {
+              const data1 = captcha.data[i];
+              const data2 = captcha.data[i+1];
+              logger.info(JSON.stringify(data1) + JSON.stringify(data2));
+              await page.mouse.move(challengeBox.x + +data1.x, challengeBox.y + +data1.y);
+              await page.mouse.down();
+              await sleep(1.1); // wait for the piece to be 'unlocked'
+              await page.mouse.move(challengeBox.x + +data2.x, challengeBox.y + +data2.y, { steps: 30 });
+              await page.mouse.up();
+            }
+          } else {
+            for (const data of captcha.data) {
+              logger.info(data);
+              await this.click(challenge, { x: +data.x, y: +data.y });
+            };
           }
           /*await*/ this.click(frame.locator('.button-submit')); // await is commented because we need to call waitForResponse at the same time
         } catch(e: any) {
@@ -345,8 +365,8 @@ class SunoApi {
         }
       }
     }).catch(e => {
-      //if (!e.message.includes('been closed'))
-        throw e;
+      browser.browser()?.close();
+      throw e;
     });
     return (new Promise((resolve, reject) => {
       page.route('**/api/generate/v2/**', async (route: any) => {
