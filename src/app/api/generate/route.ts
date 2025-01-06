@@ -1,4 +1,5 @@
 import { NextResponse, NextRequest } from "next/server";
+import { cookies } from 'next/headers'
 import { DEFAULT_MODEL, sunoApi } from "@/lib/SunoApi";
 import { corsHeaders } from "@/lib/utils";
 
@@ -10,7 +11,7 @@ export async function POST(req: NextRequest) {
       const body = await req.json();
       const { prompt, make_instrumental, model, wait_audio } = body;
 
-      const audioInfo = await (await sunoApi).generate(
+      const audioInfo = await (await sunoApi((await cookies()).toString())).generate(
         prompt,
         Boolean(make_instrumental),
         model || DEFAULT_MODEL,

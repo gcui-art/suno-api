@@ -1,4 +1,5 @@
 import pino from "pino";
+import { Page } from "rebrowser-playwright-core";
 
 const logger = pino();
 
@@ -18,6 +19,14 @@ export const sleep = (x: number, y?: number): Promise<void> => {
   logger.info(`Sleeping for ${timeout / 1000} seconds`);
 
   return new Promise(resolve => setTimeout(resolve, timeout));
+}
+
+/**
+ * @param target A Locator or a page
+ * @returns {boolean} 
+ */
+export const isPage = (target: any): target is Page => {
+  return target.constructor.name === 'Page';
 }
 
 

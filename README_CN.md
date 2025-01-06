@@ -7,10 +7,11 @@
 </div>
 <p align="center">
   <a target="_blank" href="./README.md">English</a> 
-  | <a target="_blank" href="./README_CN.md">简体中文</a> 
+  | <a target="_blank" href="./README_CN.md">简体中文</a>
+  | <a target="_blank" href="./README_RU.md">русский</a> 
   | <a target="_blank" href="https://suno.gcui.ai">Demo</a> 
   | <a target="_blank" href="https://suno.gcui.ai/docs">文档</a> 
-  | <a target="_blank" href="https://vercel.com/new/clone?repository-url=https%3A%2F%2Fgithub.com%2Fgcui-art%2Fsuno-api&env=SUNO_COOKIE&project-name=suno-api&repository-name=suno-api">一键部署到 Vercel</a> 
+  | <a target="_blank" href="https://vercel.com/new/clone?repository-url=https%3A%2F%2Fgithub.com%2Fgcui-art%2Fsuno-api&env=SUNO_COOKIE,TWOCAPTCHA_KEY,BROWSER,BROWSER_GHOST_CURSOR,BROWSER_LOCALE,BROWSER_HEADLESS&project-name=suno-api&repository-name=suno-api">一键部署到 Vercel</a> 
   
 </p>
 <p align="center">
@@ -61,7 +62,7 @@ Suno.ai v3 是一个令人惊叹的 AI 音乐服务，虽然官方还没有开�
 
 #### 部署到 Vercel
 
-[![部署到 Vercel](https://vercel.com/button)](https://vercel.com/new/clone?repository-url=https%3A%2F%2Fgithub.com%2Fgcui-art%2Fsuno-api&env=SUNO_COOKIE&project-name=suno-api&repository-name=suno-api)
+[![部署到 Vercel](https://vercel.com/button)](https://vercel.com/new/clone?repository-url=https%3A%2F%2Fgithub.com%2Fgcui-art%2Fsuno-api&env=SUNO_COOKIE,TWOCAPTCHA_KEY,BROWSER,BROWSER_GHOST_CURSOR,BROWSER_LOCALE,BROWSER_HEADLESS&project-name=suno-api&repository-name=suno-api)
 
 #### 本地运行
 

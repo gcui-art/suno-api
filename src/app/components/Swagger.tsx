@@ -9,7 +9,12 @@ type Props = {
 const SwaggerUI = dynamic(() => import('swagger-ui-react'), { ssr: false });
 
 function Swagger({ spec }: Props) {
-  return <SwaggerUI spec={spec}/>;
+  return <SwaggerUI spec={spec} requestInterceptor={(req) => {
+    // Remove cookies before sending requests
+    req.credentials = 'omit';
+    console.log(req);
+    return req;
+  }} />;
 }
 
 export default Swagger;
