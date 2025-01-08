@@ -300,8 +300,8 @@ class SunoApi {
     new Promise<void>(async (resolve, reject) => {
       const frame = page.frameLocator('iframe[title*="hCaptcha"]');
       const challenge = frame.locator('.challenge-container');
-      while (true) {
-        try {
+      try {
+        while (true) {
           await page.waitForResponse('https://img**.hcaptcha.com/**', { timeout: 60000 }); // wait for hCaptcha image to load
           while (true) { // wait for all requests to finish
             try {
@@ -354,15 +354,18 @@ class SunoApi {
               await this.click(challenge, { x: +data.x, y: +data.y });
             };
           }
-          /*await*/ this.click(frame.locator('.button-submit')); // await is commented because we need to call waitForResponse at the same time
-        } catch(e: any) {
-          if (e.message.includes('viewport') || e.message.includes('timeout')) // when hCaptcha window has been closed due to inactivity,
-            this.click(button); // click the Create button again to trigger the CAPTCHA
-          else if (e.message.includes('been closed')) // catch error when closing the browser
-            resolve();
-          else
-            reject(e);
+          this.click(frame.locator('.button-submit')).catch(e => {
+            if (e.message.includes('viewport')) // when hCaptcha window has been closed due to inactivity,
+              this.click(button); // click the Create button again to trigger the CAPTCHA
+            else
+              throw e;
+          });
         }
+      } catch(e: any) {
+        if (e.message.includes('been closed')) // catch error when closing the browser
+          resolve();
+        else
+          reject(e);
       }
     }).catch(e => {
       browser.browser()?.close();
@@ -409,7 +412,7 @@ class SunoApi {
   ): Promise<AudioInfo[]> {
     await this.keepAlive(false);
     const startTime = Date.now();
-    const audios = this.generateSongs(
+    const audios = await this.generateSongs(
       prompt,
       false,
       undefined,
