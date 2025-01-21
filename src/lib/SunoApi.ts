@@ -230,17 +230,23 @@ class SunoApi {
    * @returns {BrowserContext}
    */
   private async launchBrowser(): Promise<BrowserContext> {
+    const args = [
+      '--disable-blink-features=AutomationControlled',
+      '--disable-web-security',
+      '--no-sandbox',
+      '--disable-dev-shm-usage',
+      '--disable-features=site-per-process',
+      '--disable-features=IsolateOrigins',
+      '--disable-extensions',
+      '--disable-infobars'
+    ];
+    // Check for GPU acceleration, as it is recommended to turn it off for Docker
+    if (yn(process.env.BROWSER_DISABLE_GPU, { default: false }))
+      args.push('--enable-unsafe-swiftshader',
+        '--disable-gpu',
+        '--disable-setuid-sandbox');
     const browser = await this.getBrowserType().launch({
-      args: [
-        '--disable-blink-features=AutomationControlled',
-        '--disable-web-security',
-        '--no-sandbox',
-        '--disable-dev-shm-usage',
-        '--disable-features=site-per-process',
-        '--disable-features=IsolateOrigins',
-        '--disable-extensions',
-        '--disable-infobars'
-      ],
+      args,
       headless: yn(process.env.BROWSER_HEADLESS, { default: true })
     });
     const context = await browser.newContext({ userAgent: this.userAgent, locale: process.env.BROWSER_LOCALE, viewport: null });
@@ -798,7 +804,7 @@ class SunoApi {
 }
 
 export const sunoApi = async (cookie?: string) => {
-  const resolvedCookie = cookie || process.env.SUNO_COOKIE;
+  const resolvedCookie = cookie && cookie.includes('__client') ? cookie : process.env.SUNO_COOKIE; // Check for bad `Cookie` header (It's too expensive to actually parse the cookies *here*)
   if (!resolvedCookie) {
     logger.info('No cookie provided! Aborting...\nPlease provide a cookie either in the .env file or in the Cookie header of your request.')
     throw new Error('Please provide a cookie either in the .env file or in the Cookie header of your request.');

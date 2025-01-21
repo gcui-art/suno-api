@@ -64,7 +64,11 @@ We have deployed an example bound to a free Suno account, so it has daily usage 
 
 [Create](https://2captcha.com/auth/register?userType=customer) a new 2Captcha account, [top up](https://2captcha.com/pay) your balance and [get your API key](https://2captcha.com/enterpage#recognition).
 
-If you are located in Russia or Belarus, use the [ruCaptcha](https://rucaptcha.com) interface instead of 2Captcha. It's the same service, but it supports payments from those countries.
+> [!NOTE]
+> If you are located in Russia or Belarus, use the [ruCaptcha](https://rucaptcha.com) interface instead of 2Captcha. It's the same service, but it supports payments from those countries.
+
+> [!TIP]
+> If you want as few CAPTCHAs as possible, it is recommended to use a macOS system. macOS systems usually get fewer CAPTCHAs than Linux and Windows—this is due to its unpopularity in the web scraping industry. Running suno-api on Windows and Linux will work, but in some cases, you could get a pretty large number of CAPTCHAs.
 
 ### 3. Clone and deploy this project
 
@@ -80,9 +84,11 @@ You can choose your preferred deployment method:
 git clone https://github.com/gcui-art/suno-api.git
 cd suno-api
 npm install
-npx playwright install chromium
 ```
 #### Docker
+>[!IMPORTANT]
+> GPU acceleration will be disabled in Docker. If you have a slow CPU, it is recommended to [deploy locally](#run-locally).
+
 Alternatively, you can use [Docker Compose](https://docs.docker.com/compose/). However, follow the step below before running.
 
 ```bash
