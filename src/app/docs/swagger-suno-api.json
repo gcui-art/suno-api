@@ -231,6 +231,11 @@
                     "description": "Music genre",
                     "example": ""
                   },
+                  "negative_tags": {
+                    "type": "string",
+                    "description": "Negative Music genre",
+                    "example":""
+                  },
                   "model": {
                     "type": "string",
                     "description": "Model name ,default is chirp-v3-5",
