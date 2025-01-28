@@ -1,5 +1,5 @@
 <div align="center">
-  <h1 align="center"">
+  <h1 align="center">
       Suno AI API
   </h1>
   <p>Use API to call the music generation AI of Suno.ai and easily integrate it into agents like GPTs.</p>
