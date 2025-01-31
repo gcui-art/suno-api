@@ -8,8 +8,12 @@ const nextConfig = {
     return config;
   },
   experimental: {
-    serverMinification: false, // the server minification unfortunately breaks the selector class names
-  },
-};  
+    serverComponentsExternalPackages: [
+      'playwright-core',
+      '@sparticuz/chromium'
+    ],
+    serverMinification: false // the server minification unfortunately breaks the selector class names
+  }
+};
 
 export default nextConfig;
