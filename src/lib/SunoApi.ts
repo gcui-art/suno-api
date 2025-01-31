@@ -247,7 +247,7 @@ class SunoApi {
 
     const isDev = process.env.NODE_ENV === 'development';
     const defaultPath = isDev ? undefined : await chromium.executablePath();
-    const execPath = process.env.CHROME_PATH || defaultPath || '/Users/art/Library/Caches/ms-playwright/chromium-1155/chrome-mac/Chromium.app/Contents/MacOS/Chromium';
+    const execPath = process.env.CHROME_PATH || defaultPath;
     const args = isDev ? baseArgs : uniq([...baseArgs, ...chromium.args]);
 
     logger.info({
