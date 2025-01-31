@@ -1,8 +1,8 @@
 {
   "functions": {
-    "api/**/*.ts": {
-      "memory": 2048,
-      "maxDuration": 300
+    "app/**/*.js": {
+      "maxDuration": 300,
+      "memory": 2048
     }
   }
 }
