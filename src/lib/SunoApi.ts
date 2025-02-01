@@ -271,10 +271,10 @@ class SunoApi {
     let browser: playwright.Browser;
 
     if (this.isVercel) {
-      const { default: chromium } = await import('@sparticuz/chromium-min');
+      const { default: chromium } = await import('@sparticuz/chromium');
       browser = await playwright.chromium.launch({
         args: uniq([...baseArgs, ...chromium.args]),
-        executablePath: chromium.executablePath(),
+        executablePath: await chromium.executablePath(),
         headless: true
       });
     } else {
