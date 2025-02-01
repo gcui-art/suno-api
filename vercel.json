@@ -1,11 +1,4 @@
 {
   "installCommand": "pnpm install && pnpm vercel-install",
-  "buildCommand": "pnpm build",
-  "framework": "nextjs",
-  "builds": [
-    {
-      "src": "*.js",
-      "use": "@vercel/node"
-    }
-  ]
+  "buildCommand": "pnpm build"
 }
