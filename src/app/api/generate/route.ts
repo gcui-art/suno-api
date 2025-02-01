@@ -6,7 +6,6 @@ import pino from 'pino';
 
 const logger = pino();
 export const dynamic = "force-dynamic";
-export const maxDuration = process.env.VERCEL_FUNCTIONS_TIMEOUT ? parseInt(process.env.VERCEL_FUNCTIONS_TIMEOUT) : 60;
 
 export async function POST(req: NextRequest) {
   if (req.method === 'POST') {

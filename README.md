@@ -108,7 +108,6 @@ docker compose build && docker compose up
 - `BROWSER_LOCALE` — the language of the browser. Using either `en` or `ru` is recommended, since those have the most workers on 2Captcha. [List of supported languages](https://2captcha.com/2captcha-api#language)
 - `BROWSER_HEADLESS` — run the browser without the window. You probably want to set this to `true`.
 - `BROWSER_USER_AGENT` — Optional, it defaults to a Mac OS user agent for better captcha solving times
-- `VERCEL_FUNCTIONS_TIMEOUT` — Only PRO can use 300s, FREE can only use 60s (Captcha will rarely solve before 1 minute)
 ```bash
 SUNO_COOKIE=<…>
 TWOCAPTCHA_KEY=<…>
@@ -117,7 +116,6 @@ BROWSER_GHOST_CURSOR=false
 BROWSER_LOCALE=en
 BROWSER_HEADLESS=true
 BROWSER_USER_AGENT=
-VERCEL_FUNCTIONS_TIMEOUT=300
 ```
 
 ### 4.1 Install Browser Dependencies
@@ -130,6 +128,23 @@ pnpx rebrowser-playwright-core install chromium
 ```
 
 This will download and install the Chromium browser that's compatible with the automation system.
+
+### 4.2 Setting the Vercel Function Timeout in the deployment settings
+
+> [!IMPORTANT]
+> This is only required for Vercel deployments. If you are running this project locally, you can skip this step.
+
+Since this project uses browser automation for CAPTCHA solving, you need to set the Vercel Function Timeout to 300 seconds (for PRO users) or 60 seconds (for FREE users).
+
+```bash
+# Go to the Vercel dashboard
+# Click on the "Settings" tab
+# Scroll down to the "Functions" section
+# Set the "Timeout" to 300(PRO) or 60(FREE) seconds
+```
+
+> [!NOTE]
+> If you are using the free plan, the CAPTCHA will rarely solve before 1 minute.
 
 ### 5. Run suno-api
 
