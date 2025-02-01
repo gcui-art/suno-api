@@ -1,4 +1,4 @@
 declare module '@sparticuz/chromium-min' {
   export const args: string[];
-  export const executablePath: () => Promise<string>;
+  export const executablePath: () => string;
 }

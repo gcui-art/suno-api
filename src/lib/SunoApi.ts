@@ -274,7 +274,7 @@ class SunoApi {
       const { default: chromium } = await import('@sparticuz/chromium-min');
       browser = await playwright.chromium.launch({
         args: uniq([...baseArgs, ...chromium.args]),
-        executablePath: await chromium.executablePath(),
+        executablePath: chromium.executablePath(),
         headless: true
       });
     } else {
@@ -285,7 +285,7 @@ class SunoApi {
     }
 
     const context = await browser.newContext({
-      userAgent: process.env.BROWSER_USER_AGENT || "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/14.0.3 Safari/605.1.15",
+      userAgent: this.userAgent,
       locale: process.env.BROWSER_LOCALE,
       viewport: null
     });
