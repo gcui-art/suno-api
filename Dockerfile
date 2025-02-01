@@ -1,13 +1,19 @@
 # syntax=docker/dockerfile:1 
                                                                                                                                                                                                     
-FROM node:lts-bookworm AS builder                                                                                       
+FROM node:lts-bookworm AS builder         
+
+RUN npm install -g pnpm
+
 WORKDIR /src                                                                                                            
 COPY package*.json ./                                                                                                   
-RUN npm install                                                                                                         
+RUN pnpm install                                                                                                         
 COPY . .                                                                                                               
-RUN npm run build                                                                                                       
+RUN pnpm run build                                                                                                       
                                                                                                                     
-FROM node:lts-bookworm                                                                                                  
+FROM node:lts-bookworm       
+
+RUN npm install -g pnpm
+
 WORKDIR /app                                                                                                            
 COPY package*.json ./                                                                                                   
                                                                                                                     
@@ -21,12 +27,12 @@ ENV SUNO_COOKIE=${SUNO_COOKIE}
 # Disable GPU acceleration, as with it suno-api won't work in a Docker environment
 ENV BROWSER_DISABLE_GPU=true
 
-RUN npm install --only=production                                                                                       
+RUN pnpm install --only=production                                                                                       
                                                                                                                     
 # Install all supported browsers, else switching browsers requires an image rebuild                                     
-RUN npx playwright install chromium                                                                                     
+RUN pnpx rebrowser-playwright-core install chromium                                                                                    
 # RUN npx playwright install firefox                                                                                     
                                                                                                                     
 COPY --from=builder /src/.next ./.next                                                                                  
 EXPOSE 3000                                                                                                             
-CMD ["npm", "run", "start"]
+CMD ["pnpm", "run", "start"]

@@ -10,7 +10,7 @@ const nextConfig = {
   experimental: {
     serverComponentsExternalPackages: [
       'playwright-core',
-      '@sparticuz/chromium'
+      '@sparticuz/chromium-min'
     ],
     serverMinification: false // the server minification unfortunately breaks the selector class names
   }
