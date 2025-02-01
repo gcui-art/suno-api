@@ -6,6 +6,7 @@ import { isPage, sleep, waitForRequests } from '@/lib/utils';
 import * as cookie from 'cookie';
 import { randomUUID } from 'node:crypto';
 import { Solver } from '@2captcha/captcha-solver';
+import chromium from '@sparticuz/chromium';
 import { paramsCoordinates } from '@2captcha/captcha-solver/dist/structs/2captcha';
 import type { BrowserContext, Page, Locator } from 'rebrowser-playwright-core';
 import * as playwright from 'rebrowser-playwright-core';
@@ -271,7 +272,6 @@ class SunoApi {
     let browser: playwright.Browser;
 
     if (this.isVercel) {
-      const { default: chromium } = await import('@sparticuz/chromium');
       browser = await playwright.chromium.launch({
         args: uniq([...baseArgs, ...chromium.args]),
         executablePath: await chromium.executablePath(),

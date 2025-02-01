@@ -8,10 +8,7 @@ const nextConfig = {
     return config;
   },
   experimental: {
-    serverComponentsExternalPackages: [
-      'rebrowser-playwright-core',
-      '@sparticuz/chromium'
-    ],
+    serverComponentsExternalPackages: ['@sparticuz/chromium'],
     serverMinification: false // the server minification unfortunately breaks the selector class names
   }
 };

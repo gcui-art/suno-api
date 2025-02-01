@@ -12,8 +12,7 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "next lint",
-    "vercel-install": "node scripts/vercel-install.js"
+    "lint": "next lint"
   },
   "dependencies": {
     "@2captcha/captcha-solver": "^1.3.0",
