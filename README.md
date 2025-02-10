@@ -124,7 +124,7 @@ Since this project uses browser automation for CAPTCHA solving, you need to inst
 
 ```bash
 # Install the required browser binary
-pnpx rebrowser-playwright-core install chromium
+npx rebrowser-playwright-core install chromium
 ```
 
 This will download and install the Chromium browser that's compatible with the automation system.
