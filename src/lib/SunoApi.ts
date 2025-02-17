@@ -39,6 +39,34 @@ export interface AudioInfo {
   error_message?: string; // Error message if any
 }
 
+interface PersonaResponse {
+  persona: {
+    id: string;
+    name: string;
+    description: string;
+    image_s3_id: string;
+    root_clip_id: string;
+    clip: any; // You can define a more specific type if needed
+    user_display_name: string;
+    user_handle: string;
+    user_image_url: string;
+    persona_clips: Array<{
+      clip: any; // You can define a more specific type if needed
+    }>;
+    is_suno_persona: boolean;
+    is_trashed: boolean;
+    is_owned: boolean;
+    is_public: boolean;
+    is_public_approved: boolean;
+    is_loved: boolean;
+    upvote_count: number;
+    clip_count: number;
+  };
+  total_results: number;
+  current_page: number;
+  is_following: boolean;
+}
+
 class SunoApi {
   private static BASE_URL: string = 'https://studio-api.prod.suno.com';
   private static CLERK_BASE_URL: string = 'https://clerk.suno.com';
@@ -800,6 +828,24 @@ class SunoApi {
       monthly_limit: response.data.monthly_limit,
       monthly_usage: response.data.monthly_usage
     };
+  }
+
+  public async getPersonaPaginated(personaId: string, page: number = 1): Promise<PersonaResponse> {
+    await this.keepAlive(false);
+    
+    const url = `${SunoApi.BASE_URL}/api/persona/get-persona-paginated/${personaId}/?page=${page}`;
+    
+    logger.info(`Fetching persona data: ${url}`);
+    
+    const response = await this.client.get(url, {
+      timeout: 10000 // 10 seconds timeout
+    });
+
+    if (response.status !== 200) {
+      throw new Error('Error response: ' + response.statusText);
+    }
+
+    return response.data;
   }
 }
 
