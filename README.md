@@ -39,7 +39,7 @@ We have deployed an example bound to a free Suno account, so it has daily usage 
 - Perfectly implements the creation API from suno.ai.
 - Automatically keep the account active.
 - Solve CAPTCHAs automatically using [2Captcha](https://2captcha.com) and [Playwright](https://playwright.dev) with [rebrowser-patches](https://github.com/rebrowser/rebrowser-patches).
-- Compatible with the format of OpenAI’s `/v1/chat/completions` API.
+- Compatible with the format of OpenAI's `/v1/chat/completions` API.
 - Supports Custom Mode.
 - One-click deployment to [Vercel](#deploy-to-vercel) & [Docker](#docker).
 - In addition to the standard API, it also adapts to the API Schema of Agent platforms like GPTs and Coze, so you can use it as a tool/plugin/Action for LLMs and integrate it into any AI Agent.
@@ -99,7 +99,7 @@ docker compose build && docker compose up
 
 - If deployed to Vercel, please add the environment variables in the Vercel dashboard.
 
-- If you’re running this locally, be sure to add the following to your `.env` file:
+- If you're running this locally, be sure to add the following to your `.env` file:
 #### Environment variables
 - `SUNO_COOKIE` — the `Cookie` header you obtained in the first step.
 - `TWOCAPTCHA_KEY` — your 2Captcha API key from the second step.
@@ -107,6 +107,7 @@ docker compose build && docker compose up
 - `BROWSER_GHOST_CURSOR` — use ghost-cursor-playwright to simulate smooth mouse movements. Please note that it doesn't seem to make any difference in the rate of CAPTCHAs, so you can set it to `false`. Retained for future testing.
 - `BROWSER_LOCALE` — the language of the browser. Using either `en` or `ru` is recommended, since those have the most workers on 2Captcha. [List of supported languages](https://2captcha.com/2captcha-api#language)
 - `BROWSER_HEADLESS` — run the browser without the window. You probably want to set this to `true`.
+- `BROWSER_USER_AGENT` — Optional, it defaults to a Mac OS user agent for better captcha solving times
 ```bash
 SUNO_COOKIE=<…>
 TWOCAPTCHA_KEY=<…>
@@ -114,11 +115,40 @@ BROWSER=chromium
 BROWSER_GHOST_CURSOR=false
 BROWSER_LOCALE=en
 BROWSER_HEADLESS=true
+BROWSER_USER_AGENT=
 ```
+
+### 4.1 Install Browser Dependencies
+
+Since this project uses browser automation for CAPTCHA solving, you need to install the required browser:
+
+```bash
+# Install the required browser binary
+npx rebrowser-playwright-core install chromium
+```
+
+This will download and install the Chromium browser that's compatible with the automation system.
+
+### 4.2 Setting the Vercel Function Timeout in the deployment settings
+
+> [!IMPORTANT]
+> This is only required for Vercel deployments. If you are running this project locally, you can skip this step.
+
+Since this project uses browser automation for CAPTCHA solving, you need to set the Vercel Function Timeout to 300 seconds (for PRO users) or 60 seconds (for FREE users).
+
+```bash
+# Go to the Vercel dashboard
+# Click on the "Settings" tab
+# Scroll down to the "Functions" section
+# Set the "Timeout" to 300(PRO) or 60(FREE) seconds
+```
+
+> [!NOTE]
+> If you are using the free plan, the CAPTCHA will rarely solve before 1 minute.
 
 ### 5. Run suno-api
 
-- If you’ve deployed to Vercel:
+- If you've deployed to Vercel:
   - Please click on Deploy in the Vercel dashboard and wait for the deployment to be successful.
   - Visit the `https://<vercel-assigned-domain>/api/get_limit` API for testing.
 - If running locally:
@@ -148,10 +178,10 @@ Suno API currently mainly implements the following APIs:
 
 ```bash
 - `/api/generate`: Generate music
-- `/v1/chat/completions`: Generate music - Call the generate API in a format that works with OpenAI’s API.
+- `/v1/chat/completions`: Generate music - Call the generate API in a format that works with OpenAI's API.
 - `/api/custom_generate`: Generate music (Custom Mode, support setting lyrics, music style, title, etc.)
 - `/api/generate_lyrics`: Generate lyrics based on prompt
-- `/api/get`: Get music information based on the id. Use “,” to separate multiple ids.
+- `/api/get`: Get music information based on the id. Use "," to separate multiple ids.
     If no IDs are provided, all music will be returned.
 - `/api/get_limit`: Get quota Info
 - `/api/extend_audio`: Extend audio length

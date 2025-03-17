@@ -6,6 +6,7 @@ services:
       context: .
       args:
         SUNO_COOKIE: ${SUNO_COOKIE}
+        TWOCAPTCHA_KEY: ${TWOCAPTCHA_KEY}
     volumes:
       - ./public:/app/public
     ports:
