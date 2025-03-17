@@ -33,6 +33,7 @@ export default function Docs() {
 - \`/api/get_aligned_lyrics\`: Get list of timestamps for each word in the lyrics
 - \`/api/clip\`:  Get clip information based on ID passed as query parameter \`id\`
 - \`/api/concat\`: Generate the whole song from extensions
+- \`/api/persona\`: Get persona information and clips based on ID and page number
 \`\`\`
 
 Feel free to explore the detailed API parameters and conduct tests on this page.

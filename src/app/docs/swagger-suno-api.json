@@ -588,6 +588,149 @@
           }
         }
       }
+    },
+    "/api/persona": {
+      "get": {
+        "summary": "Get persona information and clips.",
+        "description": "Retrieve persona information, including associated clips and pagination data.",
+        "tags": ["default"],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "query",
+            "required": true,
+            "description": "Persona ID",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "page",
+            "in": "query",
+            "required": false,
+            "description": "Page number (defaults to 1)",
+            "schema": {
+              "type": "integer",
+              "default": 1
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "persona": {
+                      "type": "object",
+                      "properties": {
+                        "id": {
+                          "type": "string",
+                          "description": "Persona ID"
+                        },
+                        "name": {
+                          "type": "string",
+                          "description": "Persona name"
+                        },
+                        "description": {
+                          "type": "string",
+                          "description": "Persona description"
+                        },
+                        "image_s3_id": {
+                          "type": "string",
+                          "description": "Persona image URL"
+                        },
+                        "root_clip_id": {
+                          "type": "string",
+                          "description": "Root clip ID"
+                        },
+                        "clip": {
+                          "type": "object",
+                          "description": "Root clip information"
+                        },
+                        "persona_clips": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "clip": {
+                                "type": "object",
+                                "description": "Clip information"
+                              }
+                            }
+                          }
+                        },
+                        "is_suno_persona": {
+                          "type": "boolean",
+                          "description": "Whether this is a Suno official persona"
+                        },
+                        "is_public": {
+                          "type": "boolean",
+                          "description": "Whether this persona is public"
+                        },
+                        "upvote_count": {
+                          "type": "integer",
+                          "description": "Number of upvotes"
+                        },
+                        "clip_count": {
+                          "type": "integer",
+                          "description": "Number of clips"
+                        }
+                      }
+                    },
+                    "total_results": {
+                      "type": "integer",
+                      "description": "Total number of results"
+                    },
+                    "current_page": {
+                      "type": "integer",
+                      "description": "Current page number"
+                    },
+                    "is_following": {
+                      "type": "boolean",
+                      "description": "Whether the current user is following this persona"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Missing parameter id",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "string",
+                      "example": "Missing parameter id"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "string",
+                      "example": "Internal server error"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
     }
   },
   "components": {
