@@ -124,6 +124,12 @@ async function uploadLocalFileToS3(localFilePath, s3Key) {
   return uploadResult.Location;
 }
 
+// Export the functions
+module.exports = {
+  uploadFileToS3,
+  uploadLocalFileToS3
+};
+
 if (require.main === module) {
 //   uploadFileToS3(
 //     "https://sobrief.s3.us-west-1.amazonaws.com/music/4fbb4a7d-e2e3-41b6-bb43-74d19d04cdbe-audio.mp3",
