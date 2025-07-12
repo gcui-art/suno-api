@@ -41,10 +41,6 @@ const ses = new AWS.SES({
   region: process.env.AWS_REGION || 'us-west-1', // SES region, fallback to us-west-1
 });
 
-// Print env 
-console.log("AWS_ACCESS_KEY_ID:", process.env.AWS_ACCESS_KEY_ID);
-console.log("AWS_SECRET_ACCESS_KEY:", process.env.AWS_SECRET_ACCESS_KEY);
-console.log("AWS_REGION:", process.env.AWS_REGION);
 
 /**
  * Upload a file from URL to S3
@@ -94,9 +90,47 @@ async function uploadFileToS3(url, filename) {
   }
 }
 
+const fs = require('fs');
+// Remove duplicate require('path')
+// const path = require('path'); // <-- REMOVE THIS LINE
+
+// Helper to determine content type based on file extension
+function getContentType(filename) {
+  if (filename.endsWith('.jpg') || filename.endsWith('.jpeg')) {
+    return 'image/jpeg';
+  } else if (filename.endsWith('.png')) {
+    return 'image/png';
+  } else if (filename.endsWith('.epub')) {
+    return 'application/epub+zip';
+  } else if (filename.endsWith('.mp3')) {
+    return 'audio/mpeg';
+  } else if (filename.endsWith('.json')) {
+    return 'application/json';
+  } else {
+    return 'application/octet-stream';
+  }
+}
+
+async function uploadLocalFileToS3(localFilePath, s3Key) {
+  const fileBuffer = fs.readFileSync(localFilePath);
+  const contentType = getContentType(s3Key);
+  const params = {
+    Bucket: "sobrief",
+    Key: s3Key,
+    Body: fileBuffer,
+    ContentType: contentType,
+  };
+  const uploadResult = await s3.upload(params).promise();
+  return uploadResult.Location;
+}
+
 if (require.main === module) {
-  uploadFileToS3(
-    "https://sobrief.s3.us-west-1.amazonaws.com/music/4fbb4a7d-e2e3-41b6-bb43-74d19d04cdbe-audio.mp3",
+//   uploadFileToS3(
+//     "https://sobrief.s3.us-west-1.amazonaws.com/music/4fbb4a7d-e2e3-41b6-bb43-74d19d04cdbe-audio.mp3",
+//     "music/4fbb4a7d-e2e3-41b6-bb43-74d19d04cdbe-audio.mp3"
+//   ).then(console.log);
+  uploadLocalFileToS3(
+    "4fbb4a7d-e2e3-41b6-bb43-74d19d04cdbe-audio.mp3",
     "music/4fbb4a7d-e2e3-41b6-bb43-74d19d04cdbe-audio.mp3"
   ).then(console.log);
 }
