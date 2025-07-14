@@ -61,9 +61,8 @@ export async function POST(req: NextRequest) {
       section 
     } = body;
     
-    // If not instrumental and gpt_description_prompt is not set, set it to tags
     if (!make_instrumental && !gpt_description_prompt) {
-      gpt_description_prompt = gpt_description_prompt;
+        gpt_description_prompt = gpt_description_prompt.slice(0, 200);
     }
     
     // Validate required parameters

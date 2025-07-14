@@ -659,6 +659,8 @@ class SunoApi {
       payload.tags = tags;
       payload.title = title;
       payload.negative_tags = negative_tags;
+      payload.override_fields = ["tags"];  // ADD THIS LINE - THIS IS CRITICAL!
+      
       // If gpt_description_prompt is provided, use it for auto-generated lyrics
       if (gpt_description_prompt) {
         payload.gpt_description_prompt = gpt_description_prompt;
@@ -670,7 +672,12 @@ class SunoApi {
     } else {
       payload.gpt_description_prompt = prompt;
     }
-    logger.info(`Final payload before sending: ${JSON.stringify(payload, null, 2)}`);
+    console.log('payload', payload);
+    logger.info({
+      level: 30,
+      msg: "Final payload before sending",
+      payload
+    });
     const response = await this.client.post(
       `${SunoApi.BASE_URL}/api/generate/v2/`,
       payload,
