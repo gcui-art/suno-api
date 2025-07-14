@@ -129,8 +129,8 @@ export async function POST(req: NextRequest) {
             await downloadFile(song.image_url, imagePath);
             
             // Upload to S3
-            const audioS3Key = `music/${sb_id}/${section}-music-${suffix}.mp3`;
-            const imageS3Key = `music/${sb_id}/${section}-cover-${suffix}.jpg`;
+            const audioS3Key = `immersive-audio/${sb_id}/${section}-music-${suffix}.mp3`;
+            const imageS3Key = `immersive-audio/${sb_id}/${section}-cover-${suffix}.jpg`;
             
             const audioS3Url = await uploadLocalFileToS3(audioPath, audioS3Key);
             const imageS3Url = await uploadLocalFileToS3(imagePath, imageS3Key);

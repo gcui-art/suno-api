@@ -132,11 +132,11 @@ module.exports = {
 
 if (require.main === module) {
 //   uploadFileToS3(
-//     "https://sobrief.s3.us-west-1.amazonaws.com/music/4fbb4a7d-e2e3-41b6-bb43-74d19d04cdbe-audio.mp3",
-//     "music/4fbb4a7d-e2e3-41b6-bb43-74d19d04cdbe-audio.mp3"
+//     "https://sobrief.s3.us-west-1.amazonaws.com/immersive-audio/4fbb4a7d-e2e3-41b6-bb43-74d19d04cdbe-audio.mp3",
+//     "immersive-audio/4fbb4a7d-e2e3-41b6-bb43-74d19d04cdbe-audio.mp3"
 //   ).then(console.log);
   uploadLocalFileToS3(
     "4fbb4a7d-e2e3-41b6-bb43-74d19d04cdbe-audio.mp3",
-    "music/4fbb4a7d-e2e3-41b6-bb43-74d19d04cdbe-audio.mp3"
+    "immersive-audio/4fbb4a7d-e2e3-41b6-bb43-74d19d04cdbe-audio.mp3"
   ).then(console.log);
 }
