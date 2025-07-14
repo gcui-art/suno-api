@@ -90,6 +90,66 @@ async function customGenerateMusic({
   }
 }
 
+async function requestGenerateMusicAndUpload(prompt, title, is_instrumental, sb_id, section) {
+    try {
+      console.log('🎵 Generating and uploading music...');
+  
+      const payload = {
+        // Music generation parameters
+        title: title,
+        tags: prompt,
+        make_instrumental: is_instrumental,
+        model: 'chirp-auk',
+        negative_tags: '',
+  
+        // Additional parameters for upload
+        sb_id: sb_id,
+        section: section.toString()
+      };
+
+      // If NOT instrumental, trigger auto-lyrics
+      if (!is_instrumental) {
+        payload.prompt = '';
+        payload.gpt_description_prompt = prompt; // Use prompt as the lyrics description
+      } else {
+        payload.prompt = '';
+        // Do NOT set gpt_description_prompt
+      }
+  
+      console.log('\n📦 Sending request with payload:', JSON.stringify(payload, null, 2));
+  
+      const response = await axios.post(`${baseUrl}/api/generate_and_upload`, payload, {
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        timeout: 30000 // 30 seconds timeout
+      });
+  
+      console.log('\n✅ Response received:');
+      console.log(JSON.stringify(response.data, null, 2));
+  
+      console.log('\n💡 The endpoint will continue processing in the background.');
+      console.log('Check your S3 bucket for the uploaded files:');
+      console.log(`  - immersive-audio/${payload.sb_id}/${payload.section}-music-a.mp3`);
+      console.log(`  - immersive-audio/${payload.sb_id}/${payload.section}-cover-a.jpg`);
+      console.log(`  - immersive-audio/${payload.sb_id}/${payload.section}-music-b.mp3`);
+      console.log(`  - immersive-audio/${payload.sb_id}/${payload.section}-cover-b.jpg`);
+  
+      console.log('\n📊 You can check the status of the songs using:');
+      if (response.data && Array.isArray(response.data.ids)) {
+        console.log(`curl "${baseUrl}/api/get?ids=${response.data.ids.join(',')}"`);
+      }
+      
+      return response.data;
+    } catch (error) {
+      console.error('❌ Error:', error.message);
+      if (error.response) {
+        console.error('Response data:', error.response.data);
+      }
+      throw error;
+    }
+  }
+
 // Command line usage
 if (require.main === module) {
   const args = process.argv.slice(2);

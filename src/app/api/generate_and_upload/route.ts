@@ -49,7 +49,7 @@ async function waitForCompletion(api: any, songIds: string[], maxWaitTime: numbe
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
-    const { 
+    let { 
       prompt, 
       gpt_description_prompt, 
       tags, 
@@ -60,6 +60,11 @@ export async function POST(req: NextRequest) {
       sb_id,
       section 
     } = body;
+    
+    // If not instrumental and gpt_description_prompt is not set, set it to tags
+    if (!make_instrumental && !gpt_description_prompt) {
+      gpt_description_prompt = gpt_description_prompt;
+    }
     
     // Validate required parameters
     if (!sb_id || !section) {
