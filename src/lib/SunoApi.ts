@@ -11,6 +11,7 @@ import { BrowserContext, Page, Locator, chromium, firefox } from 'rebrowser-play
 import { createCursor, Cursor } from 'ghost-cursor-playwright';
 import { promises as fs } from 'fs';
 import path from 'node:path';
+// Remove: import { expect } from '@playwright/test';
 
 // sunoApi instance caching
 const globalForSunoApi = global as unknown as { sunoApiCache?: Map<string, SunoApi> };
@@ -373,10 +374,11 @@ class SunoApi {
    */
   public async getCaptcha(): Promise<string|null> {
     // Skip CAPTCHA entirely when using CDP connection with authenticated browser
-    if (process.env.CDP_BROWSER_ENDPOINT) {
-      logger.info('Using authenticated browser via CDP - skipping CAPTCHA');
-      return null;
-    }
+    // if (process.env.CDP_BROWSER_ENDPOINT) {
+    //   logger.info('Using authenticated browser via CDP - skipping CAPTCHA');
+    //   return null;
+    // }
+    console.log("getCaptcha");
     
     if (!await this.captchaRequired())
       return null;
@@ -405,12 +407,37 @@ class SunoApi {
       // await this.click(page, { x: 318, y: 13 });
     } catch(e) {}
 
+    console.log("Locating textarea...");
     const textarea = page.locator('.custom-textarea');
-    await this.click(textarea);
-    await textarea.pressSequentially('Lorem ipsum', { delay: 80 });
+    console.log("Filling textarea with 'Test song'...");
+    await textarea.fill('Test song');
+    console.log("Blurring textarea to trigger React validation...");
+    await textarea.blur(); // Triggers React validation if needed
 
-    const button = page.locator('button[aria-label="Create"]').locator('div.flex');
-    this.click(button);
+    console.log("Locating create button...");
+    const button = page.locator('button[data-testid="create-button"]');
+    console.log("Waiting for create button to be visible...");
+    await button.waitFor({ state: 'visible', timeout: 10000 });
+    // Wait until enabled
+    const start = Date.now();
+    console.log("Waiting for create button to be enabled...");
+    while (!(await button.isEnabled())) {
+      if (Date.now() - start > 10000) {
+        console.log("Create button not enabled after 10s, throwing error.");
+        throw new Error('Create button not enabled after 10s');
+      }
+      await page.waitForTimeout(200);
+    }
+    console.log("Clicking create button...");
+    await button.click();
+
+    let captchaToken = null;
+    try {
+      captchaToken = await waitForCaptchaRequest(page, 45000); // Wait for hCaptcha for 45s
+    } catch (e) {
+      console.log('No hCaptcha request detected within 45s, will signal NO_CAPTCHA');
+      return 'NO_CAPTCHA';
+    }
 
     const controller = new AbortController();
     new Promise<void>(async (resolve, reject) => {
@@ -646,8 +673,7 @@ class SunoApi {
   ): Promise<AudioInfo[]> {
     logger.info(`generateSongs called with gpt_description_prompt: ${gpt_description_prompt}, isCustom: ${isCustom}`);
     await this.keepAlive();
-    const captchaToken = await this.getCaptcha();
-    const payload: any = {
+    let payload: any = {
       make_instrumental: make_instrumental,
       mv: model || DEFAULT_MODEL,
       prompt: '',
@@ -656,7 +682,23 @@ class SunoApi {
       continue_clip_id: continue_clip_id,
       task: task
     };
-    
+    let response;
+    let captchaToken = await this.getCaptcha();
+    if (captchaToken === 'NO_CAPTCHA') {
+      // Wait a short delay and retry the song submission once
+      await sleep(2, 3);
+      try {
+        response = await this.client.post(
+          `${SunoApi.BASE_URL}/api/generate/v2/`,
+          payload,
+          {
+            timeout: 10000 // 10 seconds timeout
+          }
+        );
+      } catch (retryError) {
+        throw new Error('Song submission failed after retry with no hCaptcha.');
+      }
+    }
     // Only include token if we have one (not using CDP authenticated browser)
     if (captchaToken !== null) {
       payload.token = captchaToken;
@@ -665,8 +707,7 @@ class SunoApi {
       payload.tags = tags;
       payload.title = title;
       payload.negative_tags = negative_tags;
-      payload.override_fields = ["tags"];  // ADD THIS LINE - THIS IS CRITICAL!
-      
+      payload.override_fields = ["tags"];
       // If gpt_description_prompt is provided, use it for auto-generated lyrics
       if (gpt_description_prompt) {
         payload.gpt_description_prompt = gpt_description_prompt;
@@ -684,13 +725,41 @@ class SunoApi {
       msg: "Final payload before sending",
       payload
     });
-    const response = await this.client.post(
-      `${SunoApi.BASE_URL}/api/generate/v2/`,
-      payload,
-      {
-        timeout: 10000 // 10 seconds timeout
+    try {
+      response = await this.client.post(
+        `${SunoApi.BASE_URL}/api/generate/v2/`,
+        payload,
+        {
+          timeout: 10000 // 10 seconds timeout
+        }
+      );
+    } catch (error: any) {
+      // Only handle 422 with token validation failed
+      if (error.response && error.response.status === 422 && error.response.data && error.response.data.detail === 'Token validation failed.') {
+        logger.info('422 Token validation failed. Triggering hcaptcha fallback.');
+        console.log('generateSongs: 422 fallback triggered');
+        // Trigger hcaptcha by sending a 'test' song description via the UI
+        this.currentToken = undefined; // Clear any bad token
+        // Force hcaptcha by calling getCaptcha with a UI trigger
+        await this.solveCaptchaWithTestPrompt();
+        // Try again with a new token
+        captchaToken = await this.getCaptcha();
+        if (captchaToken !== null) {
+          payload.token = captchaToken;
+        } else {
+          delete payload.token;
+        }
+        response = await this.client.post(
+          `${SunoApi.BASE_URL}/api/generate/v2/`,
+          payload,
+          {
+            timeout: 10000 // 10 seconds timeout
+          }
+        );
+      } else {
+        throw error;
       }
-    );
+    }
     if (response.status !== 200) {
       throw new Error('Error response:' + response.statusText);
     }
@@ -733,6 +802,40 @@ class SunoApi {
         duration: audio.metadata.duration
       }));
     }
+  }
+
+  // Helper to trigger hcaptcha by sending a 'test' song description via the UI
+  private async solveCaptchaWithTestPrompt(): Promise<void> {
+    logger.info('Triggering hcaptcha by sending a test song description via UI');
+    console.log('solveCaptchaWithTestPrompt: called');
+    // CDP_BROWSER_ENDPOINT check removed to always trigger fallback
+    const browser = await this.launchBrowser();
+    const page = await browser.newPage();
+    await page.goto('https://suno.com/create', { referer: 'https://www.google.com/', waitUntil: 'domcontentloaded', timeout: 0 });
+    try {
+      await page.getByLabel('Close').click({ timeout: 2000 });
+    } catch(e) {}
+    const textarea = page.locator('.custom-textarea');
+    await textarea.fill('Lorem ipsum');
+    await textarea.blur(); // Triggers React validation if needed
+    const button = page.locator('button[data-testid="create-button"]');
+    await button.waitFor({ state: 'visible', timeout: 10000 });
+    // Wait until enabled
+    const start = Date.now();
+    while (!(await button.isEnabled())) {
+      if (Date.now() - start > 10000) throw new Error('Create button not enabled after 10s');
+      await page.waitForTimeout(200);
+    }
+    await button.click();
+    // Wait for hcaptcha to appear and be solved
+    await sleep(5, 7); // Give time for hcaptcha to trigger
+    try {
+      await waitForCaptchaRequest(page, 45000); // Wait for hCaptcha for 45s
+    } catch (e) {
+      console.log('No hCaptcha request detected within 45s in solveCaptchaWithTestPrompt, returning');
+      return;
+    }
+    await browser.close();
   }
 
   /**
@@ -959,3 +1062,24 @@ export const sunoApi = async (cookie?: string) => {
 
   return instance;
 };
+
+// Helper function for waiting for hCaptcha request
+async function waitForCaptchaRequest(page: any, timeoutMs: number): Promise<boolean> {
+  return new Promise((resolve, reject) => {
+    let found = false;
+    const onRequest = (req: any) => {
+      if (req.url().includes('hcaptcha.com')) {
+        found = true;
+        page.off('request', onRequest);
+        resolve(true);
+      }
+    };
+    page.on('request', onRequest);
+    setTimeout(() => {
+      if (!found) {
+        page.off('request', onRequest);
+        reject(new Error('No hCaptcha request occurred within timeout.'));
+      }
+    }, timeoutMs);
+  });
+}
