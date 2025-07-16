@@ -18,6 +18,10 @@ const globalForSunoApi = global as unknown as { sunoApiCache?: Map<string, SunoA
 const cache = globalForSunoApi.sunoApiCache || new Map<string, SunoApi>();
 globalForSunoApi.sunoApiCache = cache;
 
+// For persistent Playwright context reuse via CDP
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+declare global { var __cdpContext: any; }
+
 const logger = pino();
 export const DEFAULT_MODEL = 'chirp-v3-5';
 
@@ -261,68 +265,30 @@ class SunoApi {
   private async launchBrowser(): Promise<BrowserContext> {
     // Check if CDP_BROWSER_ENDPOINT is set to connect to existing browser
     const cdpEndpoint = process.env.CDP_BROWSER_ENDPOINT;
-    
     if (cdpEndpoint) {
       // Fix localhost to use IPv4 explicitly
       const fixedEndpoint = cdpEndpoint.replace('localhost', '127.0.0.1');
-      logger.info(`Connecting to existing browser at ${fixedEndpoint}`);
-      try {
-        // Connect to existing browser via CDP
+      console.log('Connecting to persistent browser via CDP:', fixedEndpoint);
+      logger.info(`Connecting to persistent browser via CDP: ${fixedEndpoint}`);
+      // Use a static variable to cache the context
+      if (!(global as any).__cdpContext) {
         const browser = await chromium.connectOverCDP(fixedEndpoint);
-        const contexts = browser.contexts();
-        
-        // Use existing context if available, otherwise create new one
+        // Use the first context if available, otherwise create a new one
         let context: BrowserContext;
-        if (contexts.length > 0) {
-          context = contexts[0];
-          logger.info('Using existing browser context with session cookies');
+        if (browser.contexts().length > 0) {
+          context = browser.contexts()[0];
+          console.log('Reusing existing persistent browser context');
         } else {
-          context = await browser.newContext({ 
-            userAgent: this.userAgent, 
+          context = await browser.newContext({
+            userAgent: this.userAgent,
             locale: process.env.BROWSER_LOCALE,
-            viewport: null 
+            viewport: null
           });
-          logger.info('Created new context in existing browser');
+          console.log('Created new persistent browser context');
         }
-        
-        // The existing browser should already have all cookies from your logged-in session
-        // But we can add additional cookies if needed
-        const cookies = [];
-        const lax: 'Lax' | 'Strict' | 'None' = 'Lax';
-        
-        // Only add the JWT token if we have one
-        if (this.currentToken) {
-          cookies.push({
-            name: '__session',
-            value: this.currentToken,
-            domain: '.suno.com',
-            path: '/',
-            sameSite: lax
-          });
-        }
-        
-        // Add any additional cookies from environment if they don't conflict
-        for (const key in this.cookies) {
-          if (key !== '__session') { // Don't duplicate session cookie
-            cookies.push({
-              name: key,
-              value: this.cookies[key]+'',
-              domain: '.suno.com',
-              path: '/',
-              sameSite: lax
-            });
-          }
-        }
-        
-        if (cookies.length > 0) {
-          await context.addCookies(cookies);
-        }
-        
-        return context;
-      } catch (error) {
-        logger.error(`Failed to connect to CDP endpoint: ${error}`);
-        logger.info('Falling back to launching new browser instance');
+        (global as any).__cdpContext = context;
       }
+      return (global as any).__cdpContext;
     }
 
     // Original browser launch code (fallback)
@@ -385,7 +351,16 @@ class SunoApi {
 
     logger.info('CAPTCHA required. Launching browser...')
     const browser = await this.launchBrowser();
-    const page = await browser.newPage();
+    // Find an existing /create tab if available
+    let page = (await browser.pages()).find(p => p.url().includes('/create'));
+    if (!page) {
+      console.log("No existing /create tab found, creating new page...");
+      page = await browser.newPage();
+      await page.goto('https://suno.com/create', { referer: 'https://www.google.com/', waitUntil: 'domcontentloaded', timeout: 0 });
+    } else {
+      console.log("Existing /create tab found, bringing to front...");
+      await page.bringToFront();
+    }
 
     // Forward browser console logs to the Node.js terminal
     page.on('console', msg => {
@@ -810,8 +785,14 @@ class SunoApi {
     console.log('solveCaptchaWithTestPrompt: called');
     // CDP_BROWSER_ENDPOINT check removed to always trigger fallback
     const browser = await this.launchBrowser();
-    const page = await browser.newPage();
-    await page.goto('https://suno.com/create', { referer: 'https://www.google.com/', waitUntil: 'domcontentloaded', timeout: 0 });
+    // Find an existing /create tab if available
+    let page = (await browser.pages()).find(p => p.url().includes('/create'));
+    if (!page) {
+      page = await browser.newPage();
+      await page.goto('https://suno.com/create', { referer: 'https://www.google.com/', waitUntil: 'domcontentloaded', timeout: 0 });
+    } else {
+      await page.bringToFront();
+    }
     try {
       await page.getByLabel('Close').click({ timeout: 2000 });
     } catch(e) {}
