@@ -25,6 +25,51 @@ declare global { var __cdpContext: any; }
 const logger = pino();
 export const DEFAULT_MODEL = 'chirp-v3-5';
 
+// Helper function to parse moderation error messages and extract problematic words
+function parseModerationError(errorMessage: string): { field: 'tags' | 'gpt_description_prompt', word: string } | null {
+  // Pattern: "Tags contained <type>: <word>" or "Song Description contained <type>: <word>"
+  const tagsMatch = errorMessage.match(/Tags contained (?:artist name|producer tag|song title): (.+)/i);
+  const descriptionMatch = errorMessage.match(/Song Description contained (?:artist name|producer tag|song title): (.+)/i);
+  
+  if (tagsMatch) {
+    return { field: 'tags', word: tagsMatch[1].trim() };
+  } else if (descriptionMatch) {
+    return { field: 'gpt_description_prompt', word: descriptionMatch[1].trim() };
+  }
+  
+  return null;
+}
+
+// Helper function to remove a word from text, handling hyphenation and case variations
+function removeProblematicWord(text: string, word: string): string {
+  if (!text) return text;
+
+  const escapeRegex = (str: string) => str.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const normalizedWord = word.toLowerCase().replace(/[-\s]+/g, "");
+
+  // Build a regex that matches the word with any combination of spaces or hyphens between characters
+  const charsPattern = normalizedWord.split("").map(ch => escapeRegex(ch)).join("[\\s-]*");
+  const flexibleRegex = new RegExp(charsPattern, "gi");
+
+  // Direct whole-word match (handles simple cases)
+  const directRegex = new RegExp(`\\b${escapeRegex(word)}\\b`, "gi");
+
+  let result = text;
+  result = result.replace(flexibleRegex, "");
+  result = result.replace(directRegex, "");
+
+  // Collapse multiple spaces / punctuation left behind
+  result = result
+    .replace(/\s+/g, " ")
+    .replace(/-\s*-+/g, "-")
+    .replace(/,\s*,/g, ",")
+    .replace(/\s+,/g, ", ")
+    .replace(/,\s*$/g, "")
+    .trim();
+
+  return result;
+}
+
 export interface AudioInfo {
   id: string; // Unique identifier for the audio
   title?: string; // Title of the audio
@@ -750,16 +795,159 @@ class SunoApi {
           (audio) => audio.status === 'streaming' || audio.status === 'complete'
         );
         const allError = response.every((audio) => audio.status === 'error');
-        if (allCompleted || allError) {
+        if (allCompleted) {
+          return response;
+        }
+        if (allError) {
+          // Check if all errors are moderation failures
+          const moderationFailures = response.filter((audio) => 
+            audio.error_message && audio.error_message.includes('contained')
+          );
+          
+          if (moderationFailures.length === response.length && moderationFailures.length > 0) {
+            // All failures are moderation failures, try to clean and retry
+            logger.info('All songs failed due to moderation. Attempting to clean payload and retry.');
+            
+            let cleanedPayload = false;
+            for (const audio of moderationFailures) {
+              if (audio.error_message) {
+                const errorInfo = parseModerationError(audio.error_message);
+                if (errorInfo) {
+                  logger.info(`Removing problematic word "${errorInfo.word}" from ${errorInfo.field}`);
+                  
+                  if (errorInfo.field === 'tags' && payload.tags) {
+                    payload.tags = removeProblematicWord(payload.tags, errorInfo.word);
+                    cleanedPayload = true;
+                  } else if (errorInfo.field === 'gpt_description_prompt' && payload.gpt_description_prompt) {
+                    payload.gpt_description_prompt = removeProblematicWord(payload.gpt_description_prompt, errorInfo.word);
+                    cleanedPayload = true;
+                  }
+                }
+              }
+            }
+            
+            if (cleanedPayload) {
+              // Retry with cleaned payload
+              logger.info('Retrying with cleaned payload...');
+              console.log('Cleaned payload:', payload);
+              
+              try {
+                // Get new token if needed
+                if (captchaToken !== null && captchaToken !== 'NO_CAPTCHA') {
+                  captchaToken = await this.getCaptcha();
+                  payload.token = captchaToken;
+                }
+                
+                const retryResponse = await this.client.post(
+                  `${SunoApi.BASE_URL}/api/generate/v2/`,
+                  payload,
+                  { timeout: 10000 }
+                );
+                
+                if (retryResponse.status === 200) {
+                  // Update songIds with new response
+                  const newSongIds = retryResponse.data.clips.map((audio: any) => audio.id);
+                  // Continue with the new song IDs
+                  songIds.length = 0;
+                  songIds.push(...newSongIds);
+                  await sleep(5, 5);
+                  continue; // Continue the wait loop with new songs
+                }
+              } catch (retryError: any) {
+                logger.error('Retry failed:', retryError.message);
+              }
+            }
+          }
+          
+          // Print the full error response in red and a clear failure message
+          console.log('\x1b[31m%s\x1b[0m', 'FAILED RESPONSE: ' + JSON.stringify(response, null, 2));
+          console.log('\x1b[31m%s\x1b[0m', 'SONG GENERATION FAILED.');
           return response;
         }
         lastResponse = response;
         await sleep(3, 6);
         await this.keepAlive(true);
       }
+      // After timeout, check if all are error
+      if (lastResponse.every((audio) => audio.status === 'error')) {
+        // Check if all errors are moderation failures (same logic as above)
+        const moderationFailures = lastResponse.filter((audio) => 
+          audio.error_message && audio.error_message.includes('contained')
+        );
+        
+        if (moderationFailures.length === lastResponse.length && moderationFailures.length > 0) {
+          logger.info('All songs failed due to moderation after timeout. Could retry with cleaned payload.');
+        }
+        
+        console.log('\x1b[31m%s\x1b[0m', 'FAILED RESPONSE: ' + JSON.stringify(lastResponse, null, 2));
+        console.log('\x1b[31m%s\x1b[0m', 'SONG GENERATION FAILED.');
+        return lastResponse;
+      }
+      // Otherwise, return whatever we got
       return lastResponse;
     } else {
-      return response.data.clips.map((audio: any) => ({
+      // For non-wait_audio case, we might still get immediate moderation errors
+      // Check the response for any moderation messages
+      const clips = response.data.clips;
+
+      // Quick moderation check: poll a few times (up to ~8s) to catch fast moderation failures
+      const pollStart = Date.now();
+      let polled = false;
+      while (Date.now() - pollStart < 8000) {
+        const pollResp = await this.get(songIds);
+        if (pollResp.every(c => c.status === 'error')) {
+          polled = true;
+          // imitate the wait_audio allError logic for moderation retry
+          const moderationFailures = pollResp.filter(a => a.error_message?.includes('contained'));
+          if (moderationFailures.length === pollResp.length && moderationFailures.length > 0) {
+            const failedMsg = moderationFailures[0].error_message || '';
+            const errInfo = parseModerationError(failedMsg);
+            if (errInfo) {
+              if (errInfo.field === 'tags' && payload.tags) {
+                payload.tags = removeProblematicWord(payload.tags, errInfo.word);
+              } else if (errInfo.field === 'gpt_description_prompt' && payload.gpt_description_prompt) {
+                payload.gpt_description_prompt = removeProblematicWord(payload.gpt_description_prompt, errInfo.word);
+              }
+              try {
+                const retryResp = await this.client.post(`${SunoApi.BASE_URL}/api/generate/v2/`, payload, { timeout: 10000 });
+                if (retryResp.status === 200) {
+                  return retryResp.data.clips.map((a: any) => ({
+                    id: a.id,
+                    title: a.title,
+                    image_url: a.image_url,
+                    lyric: a.metadata.prompt,
+                    audio_url: a.audio_url,
+                    video_url: a.video_url,
+                    created_at: a.created_at,
+                    model_name: a.model_name,
+                    status: a.status,
+                    tags: a.metadata.tags,
+                    gpt_description_prompt: a.metadata.gpt_description_prompt,
+                    error_message: a.metadata?.error_message
+                  }));
+                }
+              } catch {}
+            }
+          }
+          break;
+        }
+        await sleep(2);
+      }
+      if (polled) {
+        // return last polled result if retry not done
+        return await this.get(songIds);
+      }
+       
+      // Check if there are moderation warnings in the response
+      let hasModerationIssue = false;
+      for (const clip of clips) {
+        if (clip.metadata && clip.metadata.error_type === 'moderation_failure') {
+          hasModerationIssue = true;
+          logger.warn(`Immediate moderation failure detected: ${clip.metadata.error_message}`);
+        }
+      }
+      
+      return clips.map((audio: any) => ({
         id: audio.id,
         title: audio.title,
         image_url: audio.image_url,
@@ -774,7 +962,8 @@ class SunoApi {
         type: audio.metadata.type,
         tags: audio.metadata.tags,
         negative_tags: audio.metadata.negative_tags,
-        duration: audio.metadata.duration
+        duration: audio.metadata.duration,
+        error_message: audio.metadata?.error_message
       }));
     }
   }
@@ -956,7 +1145,17 @@ class SunoApi {
       timeout: 10000
     });
 
+    // Print response
+    // console.log('get response:\n', response.data);
+    
     const audios = response.data.clips;
+
+    // Print error metadata in red if any audio has status 'error'
+    audios.forEach((audio: any) => {
+      if (audio.status === 'error') {
+        console.log('\x1b[31m%s\x1b[0m', 'Error metadata: ' + JSON.stringify(audio, null, 2));
+      }
+    });
 
     return audios.map((audio: any) => ({
       id: audio.id,
@@ -974,8 +1173,9 @@ class SunoApi {
       prompt: audio.metadata.prompt,
       type: audio.metadata.type,
       tags: audio.metadata.tags,
+      negative_tags: audio.metadata.negative_tags,
       duration: audio.metadata.duration,
-      error_message: audio.metadata.error_message
+      error_message: audio.metadata?.error_message
     }));
   }
 
