@@ -32,7 +32,7 @@ async function waitForCompletion(api: any, songIds: string[], maxWaitTime: numbe
     
     if (allComplete) {
       const elapsed = Date.now() - startTime;
-      console.log('\x1b[32m%s\x1b[0m', `waitForCompletion: All songs completed in ${(elapsed / 1000).toFixed(1)} seconds.`);
+      console.log('\x1b[32m%s\x1b[0m', `waitForCompletion: All songs completed in ${(elapsed / 1000).toFixed(1)} seconds. IDs: ${songIds.join(', ')}`);
       return songs;
     }
     
@@ -42,7 +42,7 @@ async function waitForCompletion(api: any, songIds: string[], maxWaitTime: numbe
   
   // Return whatever status we have after timeout
   const elapsed = Date.now() - startTime;
-  console.log(`waitForCompletion: Timeout after ${(elapsed / 1000).toFixed(1)} seconds.`);
+  console.log(`waitForCompletion: Timeout after ${(elapsed / 1000).toFixed(1)} seconds for IDs: ${songIds.join(', ')}`);
   return await api.get(songIds);
 }
 

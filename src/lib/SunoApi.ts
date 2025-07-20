@@ -27,14 +27,29 @@ export const DEFAULT_MODEL = 'chirp-v3-5';
 
 // Helper function to parse moderation error messages and extract problematic words
 function parseModerationError(errorMessage: string): { field: 'tags' | 'gpt_description_prompt', word: string } | null {
+  if (!errorMessage) return null;
+  
   // Pattern: "Tags contained <type>: <word>" or "Song Description contained <type>: <word>"
-  const tagsMatch = errorMessage.match(/Tags contained (?:artist name|producer tag|song title): (.+)/i);
-  const descriptionMatch = errorMessage.match(/Song Description contained (?:artist name|producer tag|song title): (.+)/i);
+  const tagsMatch = errorMessage.match(/Tags contained (?:artist name|producer tag|song title|band name): (.+)/i);
+  const descriptionMatch = errorMessage.match(/Song Description contained (?:artist name|producer tag|song title|band name): (.+)/i);
+  
+  // Additional patterns to catch more moderation errors
+  const tagsContainedMatch = errorMessage.match(/Tags.*contained.*: (.+)/i);
+  const descriptionContainedMatch = errorMessage.match(/(?:Song Description|Description).*contained.*: (.+)/i);
   
   if (tagsMatch) {
     return { field: 'tags', word: tagsMatch[1].trim() };
   } else if (descriptionMatch) {
     return { field: 'gpt_description_prompt', word: descriptionMatch[1].trim() };
+  } else if (tagsContainedMatch) {
+    return { field: 'tags', word: tagsContainedMatch[1].trim() };
+  } else if (descriptionContainedMatch) {
+    return { field: 'gpt_description_prompt', word: descriptionContainedMatch[1].trim() };
+  }
+  
+  // Log unrecognized patterns for debugging
+  if (errorMessage.toLowerCase().includes('contained')) {
+    logger.warn(`Unrecognized moderation error pattern: ${errorMessage}`);
   }
   
   return null;
@@ -42,32 +57,113 @@ function parseModerationError(errorMessage: string): { field: 'tags' | 'gpt_desc
 
 // Helper function to remove a word from text, handling hyphenation and case variations
 function removeProblematicWord(text: string, word: string): string {
-  if (!text) return text;
+  if (!text || !word) return text;
 
   const escapeRegex = (str: string) => str.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
   const normalizedWord = word.toLowerCase().replace(/[-\s]+/g, "");
 
-  // Build a regex that matches the word with any combination of spaces or hyphens between characters
-  const charsPattern = normalizedWord.split("").map(ch => escapeRegex(ch)).join("[\\s-]*");
-  const flexibleRegex = new RegExp(charsPattern, "gi");
-
-  // Direct whole-word match (handles simple cases)
-  const directRegex = new RegExp(`\\b${escapeRegex(word)}\\b`, "gi");
-
   let result = text;
-  result = result.replace(flexibleRegex, "");
+
+  // Try multiple removal strategies
+  
+  // 1. Direct whole-word match (handles simple cases)
+  const directRegex = new RegExp(`\\b${escapeRegex(word)}\\b`, "gi");
   result = result.replace(directRegex, "");
 
-  // Collapse multiple spaces / punctuation left behind
+  // 2. Case-insensitive match
+  const caseInsensitiveRegex = new RegExp(`\\b${escapeRegex(word)}\\b`, "gi");
+  result = result.replace(caseInsensitiveRegex, "");
+
+  // 3. Handle hyphenated versions (e.g., "the-hatters" -> "the hatters")
+  const hyphenatedWord = word.replace(/\s+/g, "-");
+  const hyphenRegex = new RegExp(`\\b${escapeRegex(hyphenatedWord)}\\b`, "gi");
+  result = result.replace(hyphenRegex, "");
+
+  // 4. Handle spaced versions (e.g., "the hatters" -> "the-hatters")
+  const spacedWord = word.replace(/-+/g, " ");
+  const spaceRegex = new RegExp(`\\b${escapeRegex(spacedWord)}\\b`, "gi");
+  result = result.replace(spaceRegex, "");
+
+  // 5. Flexible pattern matching for complex cases
+  if (normalizedWord.length > 2) {
+    const charsPattern = normalizedWord.split("").map(ch => escapeRegex(ch)).join("[\\s-]*");
+    const flexibleRegex = new RegExp(charsPattern, "gi");
+    result = result.replace(flexibleRegex, "");
+  }
+
+  // 6. Remove partial matches at word boundaries
+  const partialRegex = new RegExp(`\\b[^\\s]*${escapeRegex(word)}[^\\s]*\\b`, "gi");
+  result = result.replace(partialRegex, "");
+
+  // Clean up the result
   result = result
-    .replace(/\s+/g, " ")
-    .replace(/-\s*-+/g, "-")
-    .replace(/,\s*,/g, ",")
-    .replace(/\s+,/g, ", ")
-    .replace(/,\s*$/g, "")
+    .replace(/\s+/g, " ")           // Collapse multiple spaces
+    .replace(/-\s*-+/g, "-")        // Fix multiple hyphens
+    .replace(/,\s*,/g, ",")         // Fix multiple commas
+    .replace(/\s+,/g, ",")          // Fix spaces before commas
+    .replace(/,\s*$/g, "")          // Remove trailing commas
+    .replace(/^\s*,/g, "")          // Remove leading commas
+    .replace(/\s*\.\s*\./g, ".")    // Fix multiple periods
+    .replace(/\s+\./g, ".")         // Fix spaces before periods
     .trim();
 
   return result;
+}
+
+// Helper that attempts to remove a problematic phrase; if exact removal fails, it tries fallbacks like possessive or individual tokens
+function removeProblematicPhrase(text: string, phrase: string): { cleaned: string; changed: boolean } {
+  if (!text || !phrase) return { cleaned: text, changed: false };
+
+  const placeholder = '[WORD]';
+  let changed = false;
+  let cleaned = text;
+
+  const applyMask = (target: string, pattern: RegExp): string => {
+    return target.replace(pattern, (match) => {
+      changed = true;
+      return placeholder;
+    });
+  };
+
+  const escapeRegex = (str: string) => str.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const normalized = phrase.trim();
+
+  // Build a flexible pattern similar to removeProblematicWord but capture whole phrase
+  const flexiblePatternChars = normalized
+    .toLowerCase()
+    .replace(/[-\s]+/g, '')
+    .split('')
+    .map((ch) => escapeRegex(ch))
+    .join('[\\s-]*');
+  const flexibleRegex = new RegExp(flexiblePatternChars, 'gi');
+
+  // direct whole phrase
+  const directRegex = new RegExp(escapeRegex(normalized), 'gi');
+
+  // possessive, plural, leading 'the '
+  const variants: string[] = [];
+  if (/^the\s+/i.test(normalized)) variants.push(normalized.replace(/^the\s+/i, ''));
+  variants.push(normalized.replace(/[’']s$/i, ''));
+  variants.push(normalized.replace(/s$/i, ''));
+
+  // Apply masking
+  cleaned = applyMask(cleaned, directRegex);
+  cleaned = applyMask(cleaned, flexibleRegex);
+
+  for (const v of variants) {
+    if (!v) continue;
+    const r = new RegExp(escapeRegex(v), 'gi');
+    cleaned = applyMask(cleaned, r);
+  }
+
+  // Individual token masking (skip stop words)
+  const tokens = normalized.split(/[^A-Za-z0-9]+/).filter(tok => tok.length > 2 && tok.toLowerCase() !== 'the');
+  for (const tok of tokens) {
+    const r = new RegExp(escapeRegex(tok), 'gi');
+    cleaned = applyMask(cleaned, r);
+  }
+
+  return { cleaned, changed };
 }
 
 export interface AudioInfo {
@@ -809,6 +905,10 @@ class SunoApi {
             logger.info('All songs failed due to moderation. Attempting to clean payload and retry.');
             
             let cleanedPayload = false;
+            const originalTags = payload.tags;
+            const originalGptPrompt = payload.gpt_description_prompt;
+            
+            // Process all moderation failures to clean the payload
             for (const audio of moderationFailures) {
               if (audio.error_message) {
                 const errorInfo = parseModerationError(audio.error_message);
@@ -816,11 +916,17 @@ class SunoApi {
                   logger.info(`Removing problematic word "${errorInfo.word}" from ${errorInfo.field}`);
                   
                   if (errorInfo.field === 'tags' && payload.tags) {
-                    payload.tags = removeProblematicWord(payload.tags, errorInfo.word);
-                    cleanedPayload = true;
+                    const { cleaned: newTags, changed } = removeProblematicPhrase(payload.tags, errorInfo.word);
+                    if (changed) {
+                      payload.tags = newTags;
+                      cleanedPayload = true;
+                    }
                   } else if (errorInfo.field === 'gpt_description_prompt' && payload.gpt_description_prompt) {
-                    payload.gpt_description_prompt = removeProblematicWord(payload.gpt_description_prompt, errorInfo.word);
-                    cleanedPayload = true;
+                    const { cleaned: newPrompt, changed } = removeProblematicPhrase(payload.gpt_description_prompt, errorInfo.word);
+                    if (changed) {
+                      payload.gpt_description_prompt = newPrompt;
+                      cleanedPayload = true;
+                    }
                   }
                 }
               }
@@ -829,13 +935,22 @@ class SunoApi {
             if (cleanedPayload) {
               // Retry with cleaned payload
               logger.info('Retrying with cleaned payload...');
-              console.log('Cleaned payload:', payload);
+              logger.info(`Original tags: "${originalTags}"`);
+              logger.info(`Cleaned tags: "${payload.tags}"`);
+              if (originalGptPrompt) {
+                logger.info(`Original gpt_description_prompt: "${originalGptPrompt}"`);
+                logger.info(`Cleaned gpt_description_prompt: "${payload.gpt_description_prompt}"`);
+              }
               
               try {
                 // Get new token if needed
                 if (captchaToken !== null && captchaToken !== 'NO_CAPTCHA') {
                   captchaToken = await this.getCaptcha();
-                  payload.token = captchaToken;
+                  if (captchaToken !== null && captchaToken !== 'NO_CAPTCHA') {
+                    payload.token = captchaToken;
+                  } else {
+                    delete payload.token;
+                  }
                 }
                 
                 const retryResponse = await this.client.post(
@@ -847,6 +962,7 @@ class SunoApi {
                 if (retryResponse.status === 200) {
                   // Update songIds with new response
                   const newSongIds = retryResponse.data.clips.map((audio: any) => audio.id);
+                  logger.info(`Moderation retry successful. New song IDs: ${newSongIds.join(', ')}`);
                   // Continue with the new song IDs
                   songIds.length = 0;
                   songIds.push(...newSongIds);
@@ -854,8 +970,11 @@ class SunoApi {
                   continue; // Continue the wait loop with new songs
                 }
               } catch (retryError: any) {
-                logger.error('Retry failed:', retryError.message);
+                logger.error('Moderation retry failed:', retryError.message);
+                // Continue to return the original error response
               }
+            } else {
+              logger.warn('Could not clean payload for moderation retry');
             }
           }
           
@@ -886,85 +1005,114 @@ class SunoApi {
       // Otherwise, return whatever we got
       return lastResponse;
     } else {
-      // For non-wait_audio case, we might still get immediate moderation errors
-      // Check the response for any moderation messages
-      const clips = response.data.clips;
+      // For non-wait_audio, we poll a few times to catch and handle chained moderation failures.
+      let currentSongIds = response.data.clips.map((a: any) => a.id);
+      let finalClips = response.data.clips;
+      let currentPayload = { ...payload };
 
-      // Quick moderation check: poll a few times (up to ~8s) to catch fast moderation failures
-      const pollStart = Date.now();
-      let polled = false;
-      while (Date.now() - pollStart < 8000) {
-        const pollResp = await this.get(songIds);
-        if (pollResp.every(c => c.status === 'error')) {
-          polled = true;
-          // imitate the wait_audio allError logic for moderation retry
-          const moderationFailures = pollResp.filter(a => a.error_message?.includes('contained'));
-          if (moderationFailures.length === pollResp.length && moderationFailures.length > 0) {
-            const failedMsg = moderationFailures[0].error_message || '';
-            const errInfo = parseModerationError(failedMsg);
-            if (errInfo) {
-              if (errInfo.field === 'tags' && payload.tags) {
-                payload.tags = removeProblematicWord(payload.tags, errInfo.word);
-              } else if (errInfo.field === 'gpt_description_prompt' && payload.gpt_description_prompt) {
-                payload.gpt_description_prompt = removeProblematicWord(payload.gpt_description_prompt, errInfo.word);
-              }
-              try {
-                const retryResp = await this.client.post(`${SunoApi.BASE_URL}/api/generate/v2/`, payload, { timeout: 10000 });
-                if (retryResp.status === 200) {
-                  return retryResp.data.clips.map((a: any) => ({
-                    id: a.id,
-                    title: a.title,
-                    image_url: a.image_url,
-                    lyric: a.metadata.prompt,
-                    audio_url: a.audio_url,
-                    video_url: a.video_url,
-                    created_at: a.created_at,
-                    model_name: a.model_name,
-                    status: a.status,
-                    tags: a.metadata.tags,
-                    gpt_description_prompt: a.metadata.gpt_description_prompt,
-                    error_message: a.metadata?.error_message
-                  }));
-                }
-              } catch {}
-            }
-          }
+      for (let attempt = 0; attempt < 3; attempt++) {
+        await sleep(2, 3); // Wait a bit for status to update.
+
+        const pollResp = await this.get(currentSongIds);
+
+        // If any song is not in an error state, assume it's processing or complete. Stop retrying.
+        if (!pollResp.every(c => c.status === 'error')) {
+          finalClips = pollResp;
           break;
         }
-        await sleep(2);
-      }
-      if (polled) {
-        // return last polled result if retry not done
-        return await this.get(songIds);
-      }
-       
-      // Check if there are moderation warnings in the response
-      let hasModerationIssue = false;
-      for (const clip of clips) {
-        if (clip.metadata && clip.metadata.error_type === 'moderation_failure') {
-          hasModerationIssue = true;
-          logger.warn(`Immediate moderation failure detected: ${clip.metadata.error_message}`);
+
+        const moderationFailures = pollResp.filter(a => a.error_message?.includes('contained'));
+        
+        // If not all errors are moderation-related, stop retrying.
+        if (moderationFailures.length !== pollResp.length) {
+          finalClips = pollResp;
+          break;
+        }
+
+        logger.info(`Quick moderation attempt ${attempt + 1}: cleaning payload and retrying...`);
+        let cleaned = false;
+        
+        for (const audio of moderationFailures) {
+          const info = parseModerationError(audio.error_message || '');
+          if (!info) continue;
+
+          logger.info(`Cleaning "${info.word}" from ${info.field}`);
+
+          if (info.field === 'tags' && currentPayload.tags) {
+            const res = removeProblematicPhrase(currentPayload.tags, info.word);
+            if (res.changed) {
+              currentPayload.tags = res.cleaned;
+              cleaned = true;
+            }
+          } else if (info.field === 'gpt_description_prompt' && currentPayload.gpt_description_prompt) {
+            const res = removeProblematicPhrase(currentPayload.gpt_description_prompt, info.word);
+            if (res.changed) {
+              currentPayload.gpt_description_prompt = res.cleaned;
+              cleaned = true;
+            }
+          }
+        }
+        
+        if (!cleaned) {
+          logger.warn('Quick moderation retry: could not clean payload, aborting.');
+          finalClips = pollResp; // Return last known failing clips
+          break;
+        }
+        
+        logger.info('Retrying with cleaned payload:', currentPayload);
+
+        // Refresh token if needed
+        if (captchaToken !== null && captchaToken !== 'NO_CAPTCHA') {
+            captchaToken = await this.getCaptcha();
+            if (captchaToken !== null && captchaToken !== 'NO_CAPTCHA') {
+                currentPayload.token = captchaToken;
+            } else {
+                delete currentPayload.token;
+            }
+        }
+
+        try {
+          const retryResp = await this.client.post(`${SunoApi.BASE_URL}/api/generate/v2/`, currentPayload, { timeout: 10000 });
+          if (retryResp.status === 200) {
+            logger.info('Quick moderation retry submission was successful. Continuing polling...');
+            currentSongIds = retryResp.data.clips.map((a: any) => a.id);
+            finalClips = retryResp.data.clips;
+          } else {
+            logger.error(`Quick moderation retry submission failed with status ${retryResp.status}.`);
+            finalClips = pollResp; // Return last known failing clips
+            break;
+          }
+        } catch (err: any) {
+          logger.error('Quick moderation retry submission failed with error:', err.message);
+          finalClips = pollResp; // Return last known failing clips
+          break;
         }
       }
-      
-      return clips.map((audio: any) => ({
-        id: audio.id,
-        title: audio.title,
-        image_url: audio.image_url,
-        lyric: audio.metadata.prompt,
-        audio_url: audio.audio_url,
-        video_url: audio.video_url,
-        created_at: audio.created_at,
-        model_name: audio.model_name,
-        status: audio.status,
-        gpt_description_prompt: audio.metadata.gpt_description_prompt,
-        prompt: audio.metadata.prompt,
-        type: audio.metadata.type,
-        tags: audio.metadata.tags,
-        negative_tags: audio.metadata.negative_tags,
-        duration: audio.metadata.duration,
-        error_message: audio.metadata?.error_message
-      }));
+
+      return finalClips.map((audio: any) => {
+        const metadata = audio.metadata || {};
+        const gpt_prompt = metadata.gpt_description_prompt || audio.gpt_description_prompt;
+        const prompt = metadata.prompt || audio.prompt || '';
+        
+        return {
+          id: audio.id,
+          title: audio.title,
+          image_url: audio.image_url,
+          lyric: gpt_prompt ? '' : this.parseLyrics(prompt), // Lyrics are in prompt only if not a gpt-description custom generation
+          audio_url: audio.audio_url,
+          video_url: audio.video_url,
+          created_at: audio.created_at,
+          model_name: audio.model_name,
+          status: audio.status,
+          gpt_description_prompt: gpt_prompt,
+          prompt: prompt,
+          type: metadata.type,
+          tags: metadata.tags || audio.tags,
+          negative_tags: metadata.negative_tags,
+          duration: metadata.duration,
+          error_message: metadata.error_message || audio.error_message
+        };
+      });
     }
   }
 
