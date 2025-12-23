@@ -23,7 +23,9 @@ globalForSunoApi.sunoApiCache = cache;
 declare global { var __cdpContext: any; }
 
 const logger = pino();
-export const DEFAULT_MODEL = 'chirp-v3-5';
+// export const DEFAULT_MODEL = 'chirp-crows'; // v5
+export const DEFAULT_MODEL = 'chirp-auk'; // v4.5
+
 
 // Helper function to parse moderation error messages and extract problematic words
 function parseModerationError(errorMessage: string): { field: 'tags' | 'gpt_description_prompt', word: string } | null {
@@ -215,8 +217,9 @@ interface PersonaResponse {
 
 class SunoApi {
   private static BASE_URL: string = 'https://studio-api.prod.suno.com';
-  private static CLERK_BASE_URL: string = 'https://clerk.suno.com';
-  private static CLERK_VERSION = '5.15.0';
+  private static CLERK_BASE_URL: string = 'https://auth.suno.com';
+  private static CLERK_VERSION = '5.112.1';
+  private static CLERK_API_VERSION = '2025-11-10';
 
   private readonly client: AxiosInstance;
   private sid?: string;
@@ -300,12 +303,28 @@ class SunoApi {
     // URL to get session ID
     const getSessionUrl = `${SunoApi.CLERK_BASE_URL}/v1/client?_is_native=true&_clerk_js_version=${SunoApi.CLERK_VERSION}`;
     // Get session ID
-    const sessionResponse = await this.client.get(getSessionUrl, {
-      headers: { Authorization: this.cookies.__client }
-    });
+    let sessionResponse;
+    try {
+      sessionResponse = await this.client.get(getSessionUrl, {
+        headers: { Authorization: this.cookies.__client }
+      });
+    } catch (error: any) {
+      if (error.response?.status === 401 || error.response?.status === 403) {
+        throw new Error(
+          'Authentication failed. Your SUNO_COOKIE appears to be invalid or expired. Please get a fresh cookie while logged into suno.com'
+        );
+      }
+      throw error;
+    }
+    
     if (!sessionResponse?.data?.response?.last_active_session_id) {
+      const hasClient = !!this.cookies.__client;
+      const sessions = sessionResponse?.data?.response?.sessions || [];
       throw new Error(
-        'Failed to get session id, you may need to update the SUNO_COOKIE'
+        `Failed to get session id. Your cookie ${hasClient ? 'has __client but' : 'is missing __client cookie'}. ` +
+        `Active sessions: ${sessions.length}. ` +
+        `Please ensure you are LOGGED IN to suno.com when extracting the cookie. ` +
+        `Visit https://suno.com/create, log in, then extract a fresh cookie from the Network tab.`
       );
     }
     // Save session ID for later use
@@ -321,7 +340,7 @@ class SunoApi {
       throw new Error('Session ID is not set. Cannot renew token.');
     }
     // URL to renew session token
-    const renewUrl = `${SunoApi.CLERK_BASE_URL}/v1/client/sessions/${this.sid}/tokens?_is_native=true&_clerk_js_version=${SunoApi.CLERK_VERSION}`;
+    const renewUrl = `${SunoApi.CLERK_BASE_URL}/v1/client/sessions/${this.sid}/tokens?__clerk_api_version=${SunoApi.CLERK_API_VERSION}&_clerk_js_version=${SunoApi.CLERK_VERSION}&_is_native=true`;
     // Renew session token
     logger.info('KeepAlive...\n');
     const renewResponse = await this.client.post(renewUrl, {}, {
@@ -353,7 +372,7 @@ class SunoApi {
     const resp = await this.client.post(`${SunoApi.BASE_URL}/api/c/check`, {
       ctype: 'generation'
     });
-    logger.info(resp.data);
+    logger.info(`CAPTCHA check response: ${JSON.stringify(resp.data)}`);
     return resp.data.required;
   }
 
@@ -655,7 +674,7 @@ class SunoApi {
    */
   private async getTurnstile() {
     return this.client.post(
-      `https://clerk.suno.com/v1/client?__clerk_api_version=2021-02-05&_clerk_js_version=${SunoApi.CLERK_VERSION}&_method=PATCH`,
+      `${SunoApi.CLERK_BASE_URL}/v1/client?__clerk_api_version=${SunoApi.CLERK_API_VERSION}&_clerk_js_version=${SunoApi.CLERK_VERSION}&_method=PATCH`,
       { captcha_error: '300030,300030,300030' },
       { headers: { 'content-type': 'application/x-www-form-urlencoded' } });
   }
