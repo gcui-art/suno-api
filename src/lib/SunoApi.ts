@@ -23,9 +23,16 @@ globalForSunoApi.sunoApiCache = cache;
 declare global { var __cdpContext: any; }
 
 const logger = pino();
-// export const DEFAULT_MODEL = 'chirp-crows'; // v5
-export const DEFAULT_MODEL = 'chirp-auk'; // v4.5
 
+// Model versions
+export const MODEL_V5 = 'chirp-crow';   // v5 - uses /api/generate/v2-web/
+export const MODEL_V4_5 = 'chirp-auk';  // v4.5 - uses /api/generate/v2/
+export const DEFAULT_MODEL = MODEL_V5;  // Default to v5
+
+// Helper to determine if a model uses the v2-web endpoint
+function isV5Model(model: string): boolean {
+  return model === MODEL_V5 || model === 'chirp-crows'; // Accept both spellings
+}
 
 // Helper function to parse moderation error messages and extract problematic words
 function parseModerationError(errorMessage: string): { field: 'tags' | 'gpt_description_prompt', word: string } | null {
@@ -653,7 +660,7 @@ class SunoApi {
       throw e;
     });
     return (new Promise((resolve, reject) => {
-      page.route('**/api/generate/v2/**', async (route: any) => {
+      page.route('**/api/generate/v2*/**', async (route: any) => {  // Catches both /v2/ and /v2-web/
         try {
           logger.info('hCaptcha token received. Closing browser');
           route.abort();
@@ -808,9 +815,17 @@ class SunoApi {
   ): Promise<AudioInfo[]> {
     logger.info(`generateSongs called with gpt_description_prompt: ${gpt_description_prompt}, isCustom: ${isCustom}`);
     await this.keepAlive();
+    
+    // Determine model and endpoint
+    const actualModel = model || DEFAULT_MODEL;
+    const generateEndpoint = isV5Model(actualModel) 
+      ? `${SunoApi.BASE_URL}/api/generate/v2-web/` 
+      : `${SunoApi.BASE_URL}/api/generate/v2/`;
+    logger.info(`Using model: ${actualModel}, endpoint: ${generateEndpoint}`);
+    
     let payload: any = {
       make_instrumental: make_instrumental,
-      mv: model || DEFAULT_MODEL,
+      mv: actualModel,
       prompt: '',
       generation_type: 'TEXT',
       continue_at: continue_at,
@@ -824,7 +839,7 @@ class SunoApi {
       await sleep(2, 3);
       try {
         response = await this.client.post(
-          `${SunoApi.BASE_URL}/api/generate/v2/`,
+          generateEndpoint,
           payload,
           {
             timeout: 10000 // 10 seconds timeout
@@ -862,7 +877,7 @@ class SunoApi {
     });
     try {
       response = await this.client.post(
-        `${SunoApi.BASE_URL}/api/generate/v2/`,
+        generateEndpoint,
         payload,
         {
           timeout: 10000 // 10 seconds timeout
@@ -885,7 +900,7 @@ class SunoApi {
           delete payload.token;
         }
         response = await this.client.post(
-          `${SunoApi.BASE_URL}/api/generate/v2/`,
+          generateEndpoint,
           payload,
           {
             timeout: 10000 // 10 seconds timeout
@@ -916,7 +931,7 @@ class SunoApi {
         if (allError) {
           // Check if all errors are moderation failures
           const moderationFailures = response.filter((audio) => 
-            audio.error_message && audio.error_message.includes('contained')
+            audio.error_message && audio.error_message.includes('contain')
           );
           
           if (moderationFailures.length === response.length && moderationFailures.length > 0) {
@@ -973,7 +988,7 @@ class SunoApi {
                 }
                 
                 const retryResponse = await this.client.post(
-                  `${SunoApi.BASE_URL}/api/generate/v2/`,
+                  generateEndpoint,
                   payload,
                   { timeout: 10000 }
                 );
@@ -1010,7 +1025,7 @@ class SunoApi {
       if (lastResponse.every((audio) => audio.status === 'error')) {
         // Check if all errors are moderation failures (same logic as above)
         const moderationFailures = lastResponse.filter((audio) => 
-          audio.error_message && audio.error_message.includes('contained')
+          audio.error_message && audio.error_message.includes('contain')
         );
         
         if (moderationFailures.length === lastResponse.length && moderationFailures.length > 0) {
@@ -1040,7 +1055,7 @@ class SunoApi {
           break;
         }
 
-        const moderationFailures = pollResp.filter(a => a.error_message?.includes('contained'));
+        const moderationFailures = pollResp.filter(a => a.error_message?.includes('contain'));
         
         // If not all errors are moderation-related, stop retrying.
         if (moderationFailures.length !== pollResp.length) {
@@ -1091,7 +1106,7 @@ class SunoApi {
         }
 
         try {
-          const retryResp = await this.client.post(`${SunoApi.BASE_URL}/api/generate/v2/`, currentPayload, { timeout: 10000 });
+          const retryResp = await this.client.post(generateEndpoint, currentPayload, { timeout: 10000 });
           if (retryResp.status === 200) {
             logger.info('Quick moderation retry submission was successful. Continuing polling...');
             currentSongIds = retryResp.data.clips.map((a: any) => a.id);
