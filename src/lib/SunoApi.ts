@@ -11,6 +11,7 @@ import { BrowserContext, Page, Locator, chromium, firefox } from 'rebrowser-play
 import { createCursor, Cursor } from 'ghost-cursor-playwright';
 import { promises as fs } from 'fs';
 import path from 'node:path';
+import OpenAI from 'openai';
 // Remove: import { expect } from '@playwright/test';
 
 // sunoApi instance caching
@@ -23,6 +24,12 @@ globalForSunoApi.sunoApiCache = cache;
 declare global { var __cdpContext: any; }
 
 const logger = pino();
+
+// Helper function for blue terminal output
+const blueLog = (message: string) => {
+  console.log('\x1b[34m%s\x1b[0m', message); // Blue color
+  logger.info(message);
+};
 
 // Model versions
 export const MODEL_V5 = 'chirp-crow';   // v5 - uses /api/generate/v2-web/
@@ -235,6 +242,7 @@ class SunoApi {
   private userAgent?: string;
   private cookies: Record<string, string | undefined>;
   private solver = new Solver(process.env.TWOCAPTCHA_KEY + '');
+  private openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
   private ghostCursorEnabled = yn(process.env.BROWSER_GHOST_CURSOR, { default: false });
   private cursor?: Cursor;
 
@@ -437,25 +445,40 @@ class SunoApi {
       const fixedEndpoint = cdpEndpoint.replace('localhost', '127.0.0.1');
       console.log('Connecting to persistent browser via CDP:', fixedEndpoint);
       logger.info(`Connecting to persistent browser via CDP: ${fixedEndpoint}`);
-      // Use a static variable to cache the context
-      if (!(global as any).__cdpContext) {
-        const browser = await chromium.connectOverCDP(fixedEndpoint);
-        // Use the first context if available, otherwise create a new one
-        let context: BrowserContext;
-        if (browser.contexts().length > 0) {
-          context = browser.contexts()[0];
-          console.log('Reusing existing persistent browser context');
-        } else {
-          context = await browser.newContext({
-            userAgent: this.userAgent,
-            locale: process.env.BROWSER_LOCALE,
-            viewport: null
-          });
-          console.log('Created new persistent browser context');
+      
+      // Check if cached context exists and is still valid
+      const cachedContext = (global as any).__cdpContext;
+      if (cachedContext) {
+        try {
+          // Try to access pages() to verify context is still valid
+          await cachedContext.pages();
+          console.log('Reusing cached browser context');
+          return cachedContext;
+        } catch (error: any) {
+          // Context is invalid (browser closed), clear cache and reconnect
+          console.log('Cached browser context is invalid, reconnecting...');
+          logger.info('Cached browser context is invalid, reconnecting...');
+          (global as any).__cdpContext = null;
         }
-        (global as any).__cdpContext = context;
       }
-      return (global as any).__cdpContext;
+      
+      // Connect and create/reuse context
+      const browser = await chromium.connectOverCDP(fixedEndpoint);
+      // Use the first context if available, otherwise create a new one
+      let context: BrowserContext;
+      if (browser.contexts().length > 0) {
+        context = browser.contexts()[0];
+        console.log('Reusing existing persistent browser context');
+      } else {
+        context = await browser.newContext({
+          userAgent: this.userAgent,
+          locale: process.env.BROWSER_LOCALE,
+          viewport: null
+        });
+        console.log('Created new persistent browser context');
+      }
+      (global as any).__cdpContext = context;
+      return context;
     }
 
     // Original browser launch code (fallback)
@@ -517,16 +540,39 @@ class SunoApi {
       return null;
 
     logger.info('CAPTCHA required. Launching browser...')
-    const browser = await this.launchBrowser();
-    // Find an existing /create tab if available
-    let page = (await browser.pages()).find(p => p.url().includes('/create'));
-    if (!page) {
-      console.log("No existing /create tab found, creating new page...");
-      page = await browser.newPage();
-      await page.goto('https://suno.com/create', { referer: 'https://www.google.com/', waitUntil: 'domcontentloaded', timeout: 0 });
-    } else {
-      console.log("Existing /create tab found, bringing to front...");
-      await page.bringToFront();
+    let browser: BrowserContext;
+    let page;
+    try {
+      browser = await this.launchBrowser();
+      // Find an existing /create tab if available
+      page = (await browser.pages()).find(p => p.url().includes('/create'));
+      if (!page) {
+        console.log("No existing /create tab found, creating new page...");
+        page = await browser.newPage();
+        await page.goto('https://suno.com/create', { referer: 'https://www.google.com/', waitUntil: 'domcontentloaded', timeout: 0 });
+      } else {
+        console.log("Existing /create tab found, bringing to front...");
+        await page.bringToFront();
+      }
+    } catch (error: any) {
+      // Browser context was closed, clear cache and retry once
+      if (error.message && (error.message.includes('been closed') || error.message.includes('Target page, context or browser'))) {
+        console.log('Browser context closed, clearing cache and retrying...');
+        logger.info('Browser context closed, clearing cache and retrying...');
+        (global as any).__cdpContext = null;
+        browser = await this.launchBrowser();
+        page = (await browser.pages()).find(p => p.url().includes('/create'));
+        if (!page) {
+          console.log("No existing /create tab found, creating new page...");
+          page = await browser.newPage();
+          await page.goto('https://suno.com/create', { referer: 'https://www.google.com/', waitUntil: 'domcontentloaded', timeout: 0 });
+        } else {
+          console.log("Existing /create tab found, bringing to front...");
+          await page.bringToFront();
+        }
+      } else {
+        throw error;
+      }
     }
 
     // Forward browser console logs to the Node.js terminal
@@ -543,21 +589,60 @@ class SunoApi {
     if (this.ghostCursorEnabled)
       this.cursor = await createCursor(page);
     
-    logger.info('Triggering the CAPTCHA');
+    logger.info('Checking if CAPTCHA is already solved...');
     try {
       await page.getByLabel('Close').click({ timeout: 2000 }); // close all popups
-      // await this.click(page, { x: 318, y: 13 });
     } catch(e) {}
 
+    // First, check if CAPTCHA was already solved by checking for hCaptcha response textarea
+    // This handles the case where user manually solved CAPTCHA in the browser
+    console.log("Checking for existing solved CAPTCHA...");
+    try {
+      const hcaptchaResponse = await page.locator('textarea[name="h-captcha-response"]').first();
+      const responseValue = await hcaptchaResponse.inputValue().catch(() => '');
+      if (responseValue && responseValue.length > 50) {
+        console.log('Found existing hCaptcha response in textarea, CAPTCHA already solved');
+        logger.info('Using existing solved CAPTCHA token');
+        // Return the existing token immediately - no need to trigger new CAPTCHA
+        return responseValue;
+      }
+    } catch (e) {
+      // No existing response found, continue to trigger new CAPTCHA
+      console.log('No existing CAPTCHA response found');
+    }
+
+    logger.info('No existing solved CAPTCHA found, triggering new CAPTCHA');
     console.log("Locating textarea...");
-    const textarea = page.locator('.custom-textarea');
+    // Try placeholder-based selector first, fallback to any textarea if not found
+    let textarea = page.locator('textarea[placeholder*="speedcore"]');
+    try {
+      await textarea.waitFor({ state: 'visible', timeout: 5000 });
+    } catch (e) {
+      console.log("Placeholder-based selector not found, trying general textarea selector...");
+      textarea = page.locator('textarea').first();
+      await textarea.waitFor({ state: 'visible', timeout: 25000 });
+    }
     console.log("Filling textarea with 'Test song'...");
     await textarea.fill('Test song');
     console.log("Blurring textarea to trigger React validation...");
     await textarea.blur(); // Triggers React validation if needed
 
+    // Fill title input field
+    console.log("Locating title input...");
+    const titleInput = page.locator('input[placeholder*="Song Title"]');
+    try {
+      await titleInput.waitFor({ state: 'visible', timeout: 5000 });
+      const timestamp = Date.now();
+      const titleValue = `test-${timestamp}`;
+      console.log(`Filling title with '${titleValue}'...`);
+      await titleInput.fill(titleValue);
+      await titleInput.blur();
+    } catch (e) {
+      console.log("Title input not found or not visible, skipping...");
+    }
+
     console.log("Locating create button...");
-    const button = page.locator('button[data-testid="create-button"]');
+    const button = page.locator('button[aria-label="Create song"]');
     console.log("Waiting for create button to be visible...");
     await button.waitFor({ state: 'visible', timeout: 10000 });
     // Wait until enabled
@@ -575,105 +660,525 @@ class SunoApi {
 
     let captchaToken = null;
     try {
-      captchaToken = await waitForCaptchaRequest(page, 45000); // Wait for hCaptcha for 45s
-    } catch (e) {
-      console.log('No hCaptcha request detected within 45s, will signal NO_CAPTCHA');
+      // Wait for hCaptcha to appear using polling approach
+      console.log('Waiting for hCaptcha to appear...');
+      const timeout = 45000;
+      const startTime = Date.now();
+      let captchaDetected = false;
+      
+      // List of selectors to try for hCaptcha detection
+      const iframeSelectors = [
+        'iframe[src*="hcaptcha"]',
+        'iframe[src*="hCaptcha"]',
+        'iframe[title*="hCaptcha"]',
+        'iframe[title*="hcaptcha"]',
+        'iframe[title*="captcha"]',
+        'div[style*="z-index: 2147483647"] iframe', // hCaptcha container uses this z-index
+      ];
+      
+      while (Date.now() - startTime < timeout && !captchaDetected) {
+        // Check each selector
+        for (const selector of iframeSelectors) {
+          try {
+            const count = await page.locator(selector).count();
+            if (count > 0) {
+              console.log(`hCaptcha iframe detected with selector: ${selector}`);
+              captchaDetected = true;
+              break;
+            }
+          } catch (e) {
+            // Ignore selector errors
+          }
+        }
+        
+        if (captchaDetected) break;
+        
+        // Also check for network request
+        try {
+          await waitForCaptchaRequest(page, 1000);
+          console.log('hCaptcha detected via network request');
+          captchaDetected = true;
+          break;
+        } catch (e) {
+          // No network request yet, continue polling
+        }
+        
+        await page.waitForTimeout(500); // Check every 500ms
+      }
+      
+      if (!captchaDetected) {
+        console.log('No hCaptcha request or iframe detected within 45s, will signal NO_CAPTCHA');
+        return 'NO_CAPTCHA';
+      }
+      
+      // Give the iframe a moment to fully load
+      console.log('hCaptcha detected, waiting for it to fully load...');
+      await page.waitForTimeout(3000);
+      captchaToken = true; // Signal that CAPTCHA was detected
+    } catch (e: any) {
+      console.log('Error detecting hCaptcha:', e.message);
       return 'NO_CAPTCHA';
     }
 
+    // Skip token-based solving, go directly to coordinates-based solving
+    blueLog('═══════════════════════════════════════════════════════════');
+    blueLog('Using coordinates-based CAPTCHA solving with 2Captcha...');
+    blueLog('═══════════════════════════════════════════════════════════');
+    try {
+      return await this.solveCaptchaWithCoordinates(page, browser, button);
+    } catch (fallbackErr: any) {
+      browser.browser()?.close();
+      throw new Error('Failed to solve hCaptcha with coordinates method: ' + fallbackErr.message);
+    }
+    
+    // const hcaptchaToken = hcaptchaResult.data;
+    // console.log('hCaptcha token received, injecting into page...');
+    
+    // // Inject the token into the page and trigger the callback
+    // try {
+    //   if (!page.isClosed()) {
+    //     await page.evaluate((token: string) => {
+    //     // Set the h-captcha-response textarea
+    //     const responseTextarea = document.querySelector('textarea[name="h-captcha-response"]') as HTMLTextAreaElement;
+    //     if (responseTextarea) {
+    //       responseTextarea.value = token;
+    //     }
+        
+    //     // Also set in any iframe response fields
+    //     const iframeResponses = document.querySelectorAll('iframe[src*="hcaptcha"]');
+    //     iframeResponses.forEach((iframe: any) => {
+    //       try {
+    //         const iframeDoc = iframe.contentDocument || iframe.contentWindow?.document;
+    //         if (iframeDoc) {
+    //           const iframeTextarea = iframeDoc.querySelector('textarea[name="h-captcha-response"]');
+    //           if (iframeTextarea) {
+    //             iframeTextarea.value = token;
+    //           }
+    //         }
+    //       } catch (e) {
+    //         // Cross-origin iframe, ignore
+    //       }
+    //     });
+        
+    //     // Trigger hCaptcha callback if it exists
+    //     if ((window as any).hcaptcha) {
+    //       try {
+    //         // Try to get the widget ID
+    //         const widgetId = (window as any).hcaptcha.getWidgetID?.() || 0;
+    //         // Manually trigger the callback with our token
+    //         const callback = (window as any).hcaptchaCallback || (window as any).onHcaptchaSuccess;
+    //         if (callback) {
+    //           callback(token);
+    //         }
+    //       } catch (e) {
+    //         console.log('Could not trigger hcaptcha callback:', e);
+    //       }
+    //     }
+        
+    //     // Dispatch custom event that some sites listen for
+    //     document.dispatchEvent(new CustomEvent('hcaptcha-success', { detail: { token } }));
+    //   }, hcaptchaToken);
+    //   }
+      
+    //   // Give the page a moment to process the token
+    //   await page.waitForTimeout(1000);
+      
+    //   // Click the submit button in the hCaptcha iframe if visible
+    //   try {
+    //     const frame = page.frameLocator('iframe[src*="hcaptcha"]');
+    //     await frame.locator('.button-submit').click({ timeout: 3000 });
+    //   } catch (e) {
+    //     // Button might not be visible or iframe might have closed, that's ok
+    //     console.log('hCaptcha submit button click skipped');
+    //   }
+      
+    // } catch (err: any) {
+    //   console.log('Token injection attempt completed (some errors expected):', err.message);
+    // }
+    
+    // Wait for manual CAPTCHA solving
+    logger.info('Waiting for manual hCaptcha solving...');
+    console.log('Please solve the hCaptcha manually in the browser window.');
+    console.log('The browser will remain open until you solve it and submit the form.');
+    
+    // Wait for the API call which indicates CAPTCHA was solved and form was submitted
+    return new Promise((resolve, reject) => {
+      // Set a longer timeout for manual solving (5 minutes)
+      const timeout = setTimeout(() => {
+        console.log('Timeout waiting for manual CAPTCHA solving. Closing browser.');
+        browser.browser()?.close();
+        reject(new Error('Timeout waiting for manual CAPTCHA solving. Please solve the CAPTCHA within 5 minutes.'));
+      }, 300000); // 5 minutes
+      
+      page.route('**/api/generate/v2*/**', async (route: any) => {  // Catches both /v2/ and /v2-web/
+        try {
+          clearTimeout(timeout);
+          logger.info('API request intercepted. CAPTCHA solved manually. Closing browser.');
+          const request = route.request();
+          const requestData = request.postDataJSON();
+          
+          // Capture the auth token from the browser's request
+          const authHeader = request.headers().authorization;
+          if (authHeader) {
+            this.currentToken = authHeader.split('Bearer ').pop();
+          }
+          
+          // Extract the hCaptcha token from the request payload
+          const hcaptchaToken = requestData?.token;
+          if (!hcaptchaToken) {
+            route.abort();
+            browser.browser()?.close();
+            reject(new Error('No hCaptcha token found in request payload'));
+            return;
+          }
+          
+          route.abort();
+          browser.browser()?.close();
+          resolve(hcaptchaToken);
+        } catch(err) {
+          clearTimeout(timeout);
+          reject(err);
+        }
+      });
+    });
+  }
+
+  /**
+   * Fallback method to solve hCaptcha using coordinates-based approach with 2Captcha
+   */
+  private async solveCaptchaWithCoordinates(page: any, browser: any, button: any): Promise<string> {
+    blueLog('═══════════════════════════════════════════════════════════');
+    blueLog('🔵 COORDINATES-BASED CAPTCHA SOLVING STARTED');
+    blueLog('═══════════════════════════════════════════════════════════');
     const controller = new AbortController();
+    
     new Promise<void>(async (resolve, reject) => {
-      const frame = page.frameLocator('iframe[title*="hCaptcha"]');
+      // Try multiple iframe selectors to find the hCaptcha
+      blueLog('📍 Step 1: Locating hCaptcha iframe...');
+      let frame;
+      try {
+        frame = page.frameLocator('iframe[title*="hCaptcha"]');
+        await frame.locator('body').waitFor({ timeout: 5000 });
+        blueLog('✅ Found hCaptcha iframe using title selector');
+      } catch (e) {
+        try {
+          frame = page.frameLocator('iframe[src*="hcaptcha"]');
+          await frame.locator('body').waitFor({ timeout: 5000 });
+          blueLog('✅ Found hCaptcha iframe using src selector');
+        } catch (e2) {
+          blueLog('⚠️  Could not find hCaptcha iframe, trying to proceed anyway...');
+          frame = page.frameLocator('iframe[title*="hCaptcha"], iframe[src*="hcaptcha"]');
+        }
+      }
+      
       const challenge = frame.locator('.challenge-container');
+      const MAX_ATTEMPTS = 5;
+      
       try {
         let wait = true;
+        let attemptCount = 0;
         while (true) {
-          if (wait)
+          attemptCount++;
+          
+          // Check if we've exceeded max attempts
+          if (attemptCount > MAX_ATTEMPTS) {
+            blueLog('\n❌ ════════════════════════════════════════════════════════');
+            blueLog(`❌ MAX ATTEMPTS (${MAX_ATTEMPTS}) EXCEEDED - OpenAI failed to solve`);
+            blueLog('❌ Please solve the hCaptcha manually in the browser window');
+            blueLog('❌ The browser will remain open for manual solving...');
+            blueLog('❌ ════════════════════════════════════════════════════════\n');
+            // Don't reject - let the manual solving route handler take over
+            return;
+          }
+          
+          // Log if previous attempt failed
+          if (attemptCount > 1) {
+            blueLog(`\n⚠️  Previous answer was WRONG - trying again with OpenAI...`);
+          }
+          
+          blueLog(`\n🔄 Attempt #${attemptCount}/${MAX_ATTEMPTS}`);
+          blueLog('═══════════════════════════════════════════════════════════');
+          
+          if (wait) {
+            blueLog('⏳ Waiting for hCaptcha requests to complete...');
             await waitForRequests(page, controller.signal);
-          const drag = (await challenge.locator('.prompt-text').first().innerText()).toLowerCase().includes('drag');
+            blueLog('✅ hCaptcha requests completed');
+          }
+          
+          blueLog('📝 Reading challenge prompt...');
+          const promptText = await challenge.locator('.prompt-text').first().innerText();
+          blueLog(`📋 Challenge prompt: "${promptText}"`);
+          const drag = promptText.toLowerCase().includes('drag');
+          blueLog(`🎯 Challenge type: ${drag ? 'DRAG' : 'CLICK'}`);
+          
           let captcha: any;
-          for (let j = 0; j < 3; j++) { // try several times because sometimes 2Captcha could return an error
+          for (let j = 0; j < 3; j++) {
             try {
-              logger.info('Sending the CAPTCHA to 2Captcha');
-              const payload: paramsCoordinates = {
-                body: (await challenge.screenshot({ timeout: 5000 })).toString('base64'),
-                lang: process.env.BROWSER_LOCALE
-              };
-              if (drag) {
-                // Say to the worker that he needs to click
-                payload.textinstructions = 'CLICK on the shapes at their edge or center as shown above—please be precise!';
-                payload.imginstructions = (await fs.readFile(path.join(process.cwd(), 'public', 'drag-instructions.jpg'))).toString('base64');
+              blueLog(`\n📸 Step 2: Capturing screenshot (attempt ${j + 1}/3)...`);
+              const screenshotBuffer = await challenge.screenshot({ timeout: 5000 });
+              const screenshotBase64 = screenshotBuffer.toString('base64');
+              
+              // Save screenshot to file for inspection in a dedicated directory
+              const screenshotsDir = path.join(process.cwd(), 'captcha-screenshots');
+              try {
+                await fs.mkdir(screenshotsDir, { recursive: true });
+              } catch (e) {
+                // Directory might already exist, that's fine
               }
-              captcha = await this.solver.coordinates(payload);
+              
+              const timestamp = Date.now();
+              const screenshotFilename = `captcha-screenshot-${timestamp}.png`;
+              const screenshotPath = path.join(screenshotsDir, screenshotFilename);
+              await fs.writeFile(screenshotPath, screenshotBuffer);
+              blueLog(`💾 Screenshot saved locally to: ${screenshotPath}`);
+              blueLog(`📁 Full path: ${path.resolve(screenshotPath)}`);
+              blueLog(`📊 Screenshot size: ${screenshotBuffer.length} bytes (base64: ${screenshotBase64.length} chars)`);
+              
+              // Get challenge dimensions for coordinate calculation
+              const challengeBox = await challenge.boundingBox();
+              if (!challengeBox) throw new Error('Could not get challenge bounding box');
+              
+              blueLog('\n📤 Step 3: Sending to OpenAI Vision...');
+              
+              // Use OpenAI to solve the captcha
+              const coordinates = await this.solveCaptchaWithOpenAI(
+                screenshotBase64,
+                promptText,
+                challengeBox.width,
+                challengeBox.height,
+                150 // Approximate header height with prompt text
+              );
+              
+              // Convert to format compatible with existing click logic
+              captcha = {
+                data: coordinates,
+                id: `openai-${Date.now()}`
+              };
+              
+              blueLog(`\n✅ Step 4: GPT-5.2 solved captcha`);
+              blueLog('═══════════════════════════════════════════════════════════');
+              blueLog(`📦 Response details:`);
+              blueLog(`   - Solver: OpenAI GPT-5.2 (Responses API)`);
+              blueLog(`   - Click points: ${captcha.data.length}`);
+              blueLog(`   - Coordinates: ${JSON.stringify(captcha.data)}`);
+              blueLog('═══════════════════════════════════════════════════════════');
+              
+              // No need for lastCaptchaId with OpenAI (no bad report system)
+              
               break;
             } catch(err: any) {
+              blueLog(`❌ OpenAI error (attempt ${j + 1}/3): ${err.message}`);
               logger.info(err.message);
-              if (j != 2)
+              if (j != 2) {
+                blueLog('🔄 Retrying...');
                 logger.info('Retrying...');
-              else
+              } else {
                 throw err;
+              }
             }
-          } 
-          if (drag) {
-            const challengeBox = await challenge.boundingBox();
-            if (challengeBox == null)
-              throw new Error('.challenge-container boundingBox is null!');
-            if (captcha.data.length % 2) {
-              logger.info('Solution does not have even amount of points required for dragging. Requesting new solution...');
-              this.solver.badReport(captcha.id);
-              wait = false;
-              continue;
-            }
-            for (let i = 0; i < captcha.data.length; i += 2) {
-              const data1 = captcha.data[i];
-              const data2 = captcha.data[i+1];
-              logger.info(JSON.stringify(data1) + JSON.stringify(data2));
-              await page.mouse.move(challengeBox.x + +data1.x, challengeBox.y + +data1.y);
-              await page.mouse.down();
-              await sleep(1.1); // wait for the piece to be 'unlocked'
-              await page.mouse.move(challengeBox.x + +data2.x, challengeBox.y + +data2.y, { steps: 30 });
-              await page.mouse.up();
-            }
-            wait = true;
-          } else {
-            for (const data of captcha.data) {
-              logger.info(data);
-              await this.click(challenge, { x: +data.x, y: +data.y });
-            };
           }
-          this.click(frame.locator('.button-submit')).catch(e => {
-            if (e.message.includes('viewport')) // when hCaptcha window has been closed due to inactivity,
-              this.click(button); // click the Create button again to trigger the CAPTCHA
-            else
+          
+          if (drag) {
+            blueLog('\n⚠️  DRAG challenges are not fully supported with OpenAI solver');
+            blueLog('🎯 Step 5: Attempting DRAG challenge with OpenAI coordinates...');
+            // For drag challenges, we need pairs of coordinates (from, to)
+            // OpenAI returns single click points, so we'll skip or try a different approach
+            blueLog('❌ Skipping DRAG challenge - not supported with current OpenAI implementation');
+            wait = false;
+            continue;
+          } else {
+            blueLog('\n🖱️  Step 5: Processing CLICK challenge...');
+            blueLog(`📍 Executing ${captcha.data.length} click(s)...`);
+            for (let i = 0; i < captcha.data.length; i++) {
+              const data = captcha.data[i];
+              blueLog(`   Click #${i + 1}: (${data.x}, ${data.y})`);
+              await this.click(challenge, { x: +data.x, y: +data.y });
+              blueLog(`      ✅ Click #${i + 1} completed`);
+            }
+          }
+          
+          blueLog('\n📤 Step 6: Submitting challenge...');
+          this.click(frame.locator('.button-submit')).catch((e: any) => {
+            if (e.message.includes('viewport')) {
+              blueLog('⚠️  Submit button not in viewport, clicking main button instead');
+              this.click(button);
+            } else {
               throw e;
+            }
           });
+          blueLog('✅ Challenge submitted');
         }
       } catch(e: any) {
-        if (e.message.includes('been closed') // catch error when closing the browser
-          || e.message == 'AbortError') // catch error when waitForRequests is aborted
+        if (e.message.includes('been closed') || e.message == 'AbortError') {
+          blueLog('✅ Browser closed or aborted');
           resolve();
-        else
+        } else {
+          blueLog(`❌ Error: ${e.message}`);
           reject(e);
+        }
       }
     }).catch(e => {
+      blueLog(`❌ Fatal error: ${e.message}`);
       browser.browser()?.close();
       throw e;
     });
-    return (new Promise((resolve, reject) => {
-      page.route('**/api/generate/v2*/**', async (route: any) => {  // Catches both /v2/ and /v2-web/
+    
+    return new Promise((resolve, reject) => {
+      page.route('**/api/generate/v2*/**', async (route: any) => {
         try {
-          logger.info('hCaptcha token received. Closing browser');
+          blueLog('\n═══════════════════════════════════════════════════════════');
+          blueLog('🎉 SUCCESS: hCaptcha token received (coordinates method)');
+          blueLog('═══════════════════════════════════════════════════════════');
           route.abort();
           browser.browser()?.close();
           controller.abort();
           const request = route.request();
+          const token = request.postDataJSON().token;
           this.currentToken = request.headers().authorization.split('Bearer ').pop();
-          resolve(request.postDataJSON().token);
+          blueLog(`🔑 Auth token captured: ${this.currentToken ? 'Yes' : 'No'}`);
+          blueLog(`🎫 hCaptcha token: ${token ? token.substring(0, 50) + '...' : 'None'}`);
+          blueLog('═══════════════════════════════════════════════════════════\n');
+          resolve(token);
         } catch(err) {
+          blueLog(`❌ Error extracting token: ${err}`);
           reject(err);
         }
       });
-    }));
+    });
+  }
+
+  /**
+   * Solve hCaptcha using OpenAI Vision model (GPT-5.2 with Responses API)
+   * Maps a 3x3 grid (1-9) to pixel coordinates
+   */
+  private async solveCaptchaWithOpenAI(
+    screenshotBase64: string,
+    promptText: string,
+    challengeWidth: number,
+    challengeHeight: number,
+    headerHeight: number = 150 // Height of the prompt text area
+  ): Promise<{ x: number; y: number }[]> {
+    blueLog('\n🤖 ════════════════════════════════════════════════════════');
+    blueLog('🤖 OPENAI GPT-5.2 CAPTCHA SOLVING (Responses API)');
+    blueLog('🤖 ════════════════════════════════════════════════════════');
+    
+    const instructionText = `Images are 
+1 2 3 
+4 5 6 
+7 8 9 
+
+${promptText}
+
+Respond in comma separated numbers`;
+
+    blueLog(`📝 Instruction: "${promptText}"`);
+    blueLog('⏳ Sending to OpenAI GPT-5.2...');
+    
+    const startTime = Date.now();
+    
+    try {
+      // Using the exact Responses API format from user's script
+      const response = await (this.openai as any).responses.create({
+        model: "gpt-5.2",
+        input: [
+          {
+            role: "user",
+            content: [
+              {
+                type: "input_text",
+                text: instructionText
+              },
+              {
+                type: "input_image",
+                image_url: `data:image/png;base64,${screenshotBase64}`
+              }
+            ]
+          }
+        ],
+        text: {
+          format: {
+            type: "text"
+          },
+          verbosity: "low"
+        },
+        reasoning: {
+          effort: "low",
+          summary: "auto"
+        },
+        tools: [],
+        store: true,
+        include: [
+          "reasoning.encrypted_content",
+          "web_search_call.action.sources"
+        ]
+      });
+      
+      const solveTime = Date.now() - startTime;
+      
+      // Extract the answer from the response output
+      let answer = '';
+      if (response.output) {
+        for (const item of response.output) {
+          if (item.type === 'message' && item.content) {
+            for (const content of item.content) {
+              if (content.type === 'output_text') {
+                answer = content.text?.trim() || '';
+                break;
+              }
+            }
+          }
+        }
+      }
+      
+      blueLog(`\n✅ GPT-5.2 responded (took ${solveTime}ms)`);
+      blueLog(`📦 Raw response: "${answer}"`);
+      blueLog(`📊 Full response: ${JSON.stringify(response, null, 2).substring(0, 500)}...`);
+      
+      // Parse the comma-separated numbers
+      const numbers = answer
+        .split(',')
+        .map((s: string) => parseInt(s.trim(), 10))
+        .filter((n: number) => n >= 1 && n <= 9);
+      
+      if (numbers.length === 0) {
+        throw new Error(`Invalid OpenAI response: "${answer}" - no valid numbers found`);
+      }
+      
+      blueLog(`🔢 Parsed grid positions: [${numbers.join(', ')}]`);
+      
+      // Calculate grid cell dimensions
+      // The grid starts after the header (prompt text area)
+      const gridHeight = challengeHeight - headerHeight;
+      const cellWidth = challengeWidth / 3;
+      const cellHeight = gridHeight / 3;
+      
+      blueLog(`📐 Grid calculations:`);
+      blueLog(`   - Challenge size: ${challengeWidth}x${challengeHeight}`);
+      blueLog(`   - Header height: ${headerHeight}px`);
+      blueLog(`   - Grid area: ${challengeWidth}x${gridHeight}`);
+      blueLog(`   - Cell size: ${cellWidth.toFixed(0)}x${cellHeight.toFixed(0)}`);
+      
+      // Convert grid positions (1-9) to pixel coordinates
+      // Grid position to row/col: 1-3 = row 0, 4-6 = row 1, 7-9 = row 2
+      const coordinates: { x: number; y: number }[] = numbers.map((num: number) => {
+        const row = Math.floor((num - 1) / 3); // 0, 1, or 2
+        const col = (num - 1) % 3;              // 0, 1, or 2
+        
+        // Center of each cell
+        const x = Math.round(col * cellWidth + cellWidth / 2);
+        const y = Math.round(headerHeight + row * cellHeight + cellHeight / 2);
+        
+        blueLog(`   - Position ${num} → row=${row}, col=${col} → (${x}, ${y})`);
+        return { x, y };
+      });
+      
+      blueLog('🤖 ════════════════════════════════════════════════════════\n');
+      return coordinates;
+      
+    } catch (error: any) {
+      blueLog(`❌ OpenAI error: ${error.message}`);
+      throw error;
+    }
   }
 
   /**
@@ -1155,22 +1660,64 @@ class SunoApi {
     logger.info('Triggering hcaptcha by sending a test song description via UI');
     console.log('solveCaptchaWithTestPrompt: called');
     // CDP_BROWSER_ENDPOINT check removed to always trigger fallback
-    const browser = await this.launchBrowser();
-    // Find an existing /create tab if available
-    let page = (await browser.pages()).find(p => p.url().includes('/create'));
-    if (!page) {
-      page = await browser.newPage();
-      await page.goto('https://suno.com/create', { referer: 'https://www.google.com/', waitUntil: 'domcontentloaded', timeout: 0 });
-    } else {
-      await page.bringToFront();
+    let browser: BrowserContext;
+    let page;
+    try {
+      browser = await this.launchBrowser();
+      // Find an existing /create tab if available
+      page = (await browser.pages()).find(p => p.url().includes('/create'));
+      if (!page) {
+        page = await browser.newPage();
+        await page.goto('https://suno.com/create', { referer: 'https://www.google.com/', waitUntil: 'domcontentloaded', timeout: 0 });
+      } else {
+        await page.bringToFront();
+      }
+    } catch (error: any) {
+      // Browser context was closed, clear cache and retry once
+      if (error.message && (error.message.includes('been closed') || error.message.includes('Target page, context or browser'))) {
+        console.log('Browser context closed, clearing cache and retrying...');
+        logger.info('Browser context closed, clearing cache and retrying...');
+        (global as any).__cdpContext = null;
+        browser = await this.launchBrowser();
+        page = (await browser.pages()).find(p => p.url().includes('/create'));
+        if (!page) {
+          page = await browser.newPage();
+          await page.goto('https://suno.com/create', { referer: 'https://www.google.com/', waitUntil: 'domcontentloaded', timeout: 0 });
+        } else {
+          await page.bringToFront();
+        }
+      } else {
+        throw error;
+      }
     }
     try {
       await page.getByLabel('Close').click({ timeout: 2000 });
     } catch(e) {}
-    const textarea = page.locator('.custom-textarea');
+    // Try placeholder-based selector first, fallback to any textarea if not found
+    let textarea = page.locator('textarea[placeholder*="speedcore"]');
+    try {
+      await textarea.waitFor({ state: 'visible', timeout: 5000 });
+    } catch (e) {
+      console.log("Placeholder-based selector not found, trying general textarea selector...");
+      textarea = page.locator('textarea').first();
+      await textarea.waitFor({ state: 'visible', timeout: 25000 });
+    }
     await textarea.fill('Lorem ipsum');
     await textarea.blur(); // Triggers React validation if needed
-    const button = page.locator('button[data-testid="create-button"]');
+
+    // Fill title input field
+    const titleInput = page.locator('input[placeholder*="Song Title"]');
+    try {
+      await titleInput.waitFor({ state: 'visible', timeout: 5000 });
+      const timestamp = Date.now();
+      const titleValue = `test-${timestamp}`;
+      await titleInput.fill(titleValue);
+      await titleInput.blur();
+    } catch (e) {
+      console.log("Title input not found or not visible, skipping...");
+    }
+
+    const button = page.locator('button[aria-label="Create song"]');
     await button.waitFor({ state: 'visible', timeout: 10000 });
     // Wait until enabled
     const start = Date.now();
@@ -1430,8 +1977,16 @@ export const sunoApi = async (cookie?: string) => {
 async function waitForCaptchaRequest(page: any, timeoutMs: number): Promise<boolean> {
   return new Promise((resolve, reject) => {
     let found = false;
+    const hcaptchaDomains = [
+      'hcaptcha.com',
+      'hcaptcha-assets-prod.suno.com',
+      'hcaptcha-endpoint-prod.suno.com',
+      'hcaptcha-imgs-prod.suno.com',
+      'hcaptcha-reportapi-prod.suno.com'
+    ];
     const onRequest = (req: any) => {
-      if (req.url().includes('hcaptcha.com')) {
+      const url = req.url();
+      if (hcaptchaDomains.some(domain => url.includes(domain))) {
         found = true;
         page.off('request', onRequest);
         resolve(true);

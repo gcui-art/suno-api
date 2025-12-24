@@ -23,6 +23,22 @@ export async function POST(req: NextRequest) {
         negative_tags,
         gpt_description_prompt  // Pass the new parameter
       );
+      
+      // Check if all items have error status (e.g., moderation failures)
+      const allErrors = Array.isArray(audioInfo) && audioInfo.length > 0 && 
+        audioInfo.every((audio: any) => audio.status === 'error');
+      
+      // If all items failed, return 400 Bad Request
+      if (allErrors) {
+        return new NextResponse(JSON.stringify(audioInfo), {
+          status: 400,
+          headers: {
+            'Content-Type': 'application/json',
+            ...corsHeaders
+          }
+        });
+      }
+      
       return new NextResponse(JSON.stringify(audioInfo), {
         status: 200,
         headers: {

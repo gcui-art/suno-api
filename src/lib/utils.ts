@@ -33,11 +33,15 @@ export const isPage = (target: any): target is Page => {
  * Waits for an hCaptcha image requests and then waits for all of them to end
  * @param page
  * @param signal `const controller = new AbortController(); controller.status`
+ * @param maxWaitMs Maximum time to wait for initial request (default: 5000ms)
  * @returns {Promise<void>} 
  */
-export const waitForRequests = (page: Page, signal: AbortSignal): Promise<void> => {
+export const waitForRequests = (page: Page, signal: AbortSignal, maxWaitMs: number = 5000): Promise<void> => {
   return new Promise((resolve, reject) => {
-    const urlPattern = /^https:\/\/img[a-zA-Z0-9]*\.hcaptcha\.com\/.*$/;
+    // Match both standard hCaptcha and enterprise/custom domain patterns:
+    // - Standard: https://img*.hcaptcha.com/*
+    // - Suno enterprise: https://hcaptcha-imgs-prod.suno.com/*
+    const urlPattern = /^https:\/\/(img[a-zA-Z0-9]*\.hcaptcha\.com|hcaptcha-imgs-prod\.suno\.com)\/.*$/;
     let timeoutHandle: NodeJS.Timeout | null = null;
     let activeRequestCount = 0;
     let requestOccurred = false;
@@ -75,17 +79,19 @@ export const waitForRequests = (page: Page, signal: AbortSignal): Promise<void> 
       }
     };
 
-    // Wait for an hCaptcha request for up to 1 minute
+    // Wait for an hCaptcha request for up to maxWaitMs (default 5 seconds)
+    // If no requests happen, assume images are already loaded and proceed
     const initialTimeout = setTimeout(() => {
+      cleanupListeners();
       if (!requestOccurred) {
-        page.off('request', onRequest);
-        cleanupListeners();
-        reject(new Error('No hCaptcha request occurred within 1 minute.'));
+        // No requests happened - images might already be loaded, resolve instead of reject
+        console.log('\x1b[34m%s\x1b[0m', `⚠️  No hCaptcha image requests detected within ${maxWaitMs}ms - images may already be loaded, proceeding...`);
+        resolve();
       } else {
         // Start waiting for no hCaptcha requests
         resetTimeout();
       }
-    }, 60000); // 1 minute timeout
+    }, maxWaitMs);
 
     page.on('request', onRequest);
     page.on('requestfinished', onRequestFinished);

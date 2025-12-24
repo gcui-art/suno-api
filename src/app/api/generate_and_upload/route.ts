@@ -91,6 +91,21 @@ export async function POST(req: NextRequest) {
       gpt_description_prompt
     );
     
+    // Check if all items have error status (e.g., moderation failures)
+    const allErrors = Array.isArray(audioInfo) && audioInfo.length > 0 && 
+      audioInfo.every((audio: any) => audio.status === 'error');
+    
+    // If all items failed, return 400 Bad Request immediately
+    if (allErrors) {
+      return new NextResponse(JSON.stringify(audioInfo), {
+        status: 400,
+        headers: {
+          'Content-Type': 'application/json',
+          ...corsHeaders
+        }
+      });
+    }
+    
     // Return immediately with submitted status
     const response = new NextResponse(JSON.stringify({
       message: 'Music generation started',
