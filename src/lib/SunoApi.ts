@@ -441,8 +441,9 @@ class SunoApi {
     // Check if CDP_BROWSER_ENDPOINT is set to connect to existing browser
     const cdpEndpoint = process.env.CDP_BROWSER_ENDPOINT;
     if (cdpEndpoint) {
-      // Fix localhost to use IPv4 explicitly
-      const fixedEndpoint = cdpEndpoint.replace('localhost', '127.0.0.1');
+      // Use endpoint as-is - Playwright handles both IPv4 and IPv6
+      // Chrome may listen on IPv6 ([::1]) or IPv4 (127.0.0.1), localhost works for both
+      const fixedEndpoint = cdpEndpoint;
       console.log('Connecting to persistent browser via CDP:', fixedEndpoint);
       logger.info(`Connecting to persistent browser via CDP: ${fixedEndpoint}`);
       
@@ -462,8 +463,39 @@ class SunoApi {
         }
       }
       
-      // Connect and create/reuse context
-      const browser = await chromium.connectOverCDP(fixedEndpoint);
+      // Connect and create/reuse context with timeout
+      // Try multiple endpoints: original, IPv6, localhost
+      let browser: any;
+      const port = fixedEndpoint.match(/:(\d+)/)?.[1] || '9222';
+      const endpointsToTry = [
+        fixedEndpoint,
+        `http://[::1]:${port}`,  // IPv6 fallback (Chrome sometimes only binds to IPv6)
+        `http://localhost:${port}`,
+      ];
+      
+      let lastError: Error | null = null;
+      for (const endpoint of endpointsToTry) {
+        try {
+          console.log(`Trying CDP endpoint: ${endpoint}`);
+          browser = await Promise.race([
+            chromium.connectOverCDP(endpoint),
+            new Promise((_, reject) => 
+              setTimeout(() => reject(new Error(`Timeout connecting to ${endpoint}`)), 5000)
+            )
+          ]) as any;
+          console.log(`Successfully connected to CDP via ${endpoint}`);
+          break;
+        } catch (error: any) {
+          console.log(`Failed to connect to ${endpoint}: ${error.message}`);
+          lastError = error;
+        }
+      }
+      
+      if (!browser) {
+        logger.error(`Failed to connect to any CDP endpoint:`, lastError?.message);
+        throw new Error(`CDP connection failed: Could not connect to Chrome on port ${port}. Tried IPv4, IPv6, and localhost. Make sure Chrome is running with --remote-debugging-port=${port}`);
+      }
+      
       // Use the first context if available, otherwise create a new one
       let context: BrowserContext;
       if (browser.contexts().length > 0) {
@@ -1207,6 +1239,111 @@ Respond in comma separated numbers`;
   }
 
   /**
+   * Rephrases tags using GPT-5.2 to avoid moderation issues while preserving meaning
+   * @param tags The original tags string to rephrase
+   * @param errorMessage The error message from Suno API indicating what's wrong
+   * @returns A promise that resolves to the rephrased tags
+   */
+  public async rephraseTagsWithGPT(tags: string, errorMessage: string): Promise<string> {
+    if (!process.env.OPENAI_API_KEY) {
+      throw new Error('OPENAI_API_KEY environment variable is not set');
+    }
+    
+    if (!tags || tags.trim().length === 0) {
+      return tags;
+    }
+    
+    blueLog('\n🤖 ════════════════════════════════════════════════════════');
+    blueLog('🤖 REPHRASING TAGS WITH GPT-5.2');
+    blueLog('🤖 ════════════════════════════════════════════════════════');
+    blueLog(`📝 Original tags: "${tags}"`);
+    blueLog(`⚠️  Error message: "${errorMessage}"`);
+    
+    const instructionText = `Error Message: ${errorMessage}
+Tags: ${tags}
+Respond with the new tags in JSON, with the problematic terms removed (or with a new choice of word). Keep everything else same:
+
+{"tags":"<new_description>"}`;
+
+    try {
+      const startTime = Date.now();
+      
+      const response = await (this.openai as any).responses.create({
+        model: "gpt-5.2",
+        input: [
+          {
+            role: "user",
+            content: [
+              {
+                type: "input_text",
+                text: instructionText
+              }
+            ]
+          }
+        ],
+        text: {
+          format: {
+            type: "json_object"
+          },
+          verbosity: "low"
+        },
+        reasoning: {
+          effort: "none"
+        },
+        tools: [],
+        store: false,
+        include: []
+      });
+      
+      const solveTime = Date.now() - startTime;
+      
+      // Extract the answer from the response output
+      let responseText = '';
+      if (response.output) {
+        for (const item of response.output) {
+          if (item.type === 'message' && item.content) {
+            for (const content of item.content) {
+              if (content.type === 'output_text') {
+                responseText = content.text?.trim() || '';
+                break;
+              }
+            }
+          }
+        }
+      }
+      
+      if (!responseText) {
+        throw new Error('No response returned from GPT-5.2');
+      }
+      
+      // Parse JSON response (now guaranteed to be JSON format)
+      let rephrasedTags = '';
+      try {
+        const jsonData = JSON.parse(responseText);
+        rephrasedTags = jsonData.tags || '';
+      } catch (parseError) {
+        throw new Error(`Failed to parse JSON response from GPT-5.2: ${responseText}`);
+      }
+      
+      if (!rephrasedTags) {
+        throw new Error('No tags found in GPT-5.2 response');
+      }
+      
+      blueLog(`✅ GPT-5.2 rephrased tags (took ${solveTime}ms)`);
+      blueLog(`📦 Response text: "${responseText}"`);
+      blueLog(`📦 Rephrased tags: "${rephrasedTags}"`);
+      blueLog('🤖 ════════════════════════════════════════════════════════\n');
+      
+      return rephrasedTags;
+      
+    } catch (error: any) {
+      blueLog(`❌ GPT-5.2 rephrasing error: ${error.message}`);
+      logger.error('Failed to rephrase tags with GPT-5.2:', error);
+      throw error;
+    }
+  }
+
+  /**
    * Imitates Cloudflare Turnstile loading error. Unused right now, left for future
    */
   private async getTurnstile() {
@@ -1414,7 +1551,7 @@ Respond in comma separated numbers`;
         }
       );
     } catch (error: any) {
-      // Only handle 422 with token validation failed
+      // Handle 422 with token validation failed
       if (error.response && error.response.status === 422 && error.response.data && error.response.data.detail === 'Token validation failed.') {
         logger.info('422 Token validation failed. Triggering hcaptcha fallback.');
         console.log('generateSongs: 422 fallback triggered');
@@ -1465,47 +1602,28 @@ Respond in comma separated numbers`;
           );
           
           if (moderationFailures.length === response.length && moderationFailures.length > 0) {
-            // All failures are moderation failures, try to clean and retry
-            logger.info('All songs failed due to moderation. Attempting to clean payload and retry.');
+            // All failures are moderation failures, rephrase with GPT-5.2 and retry
+            const firstError = moderationFailures[0]?.error_message || 'Moderation failure';
+            logger.info('All songs failed due to moderation. Rephrasing with GPT-5.2...');
+            blueLog(`⚠️  Moderation failure: ${firstError}`);
+            blueLog('🤖 Rephrasing tags with GPT-5.2...');
             
-            let cleanedPayload = false;
             const originalTags = payload.tags;
-            const originalGptPrompt = payload.gpt_description_prompt;
+            let rephrasedSuccessfully = false;
             
-            // Process all moderation failures to clean the payload
-            for (const audio of moderationFailures) {
-              if (audio.error_message) {
-                const errorInfo = parseModerationError(audio.error_message);
-                if (errorInfo) {
-                  logger.info(`Removing problematic word "${errorInfo.word}" from ${errorInfo.field}`);
-                  
-                  if (errorInfo.field === 'tags' && payload.tags) {
-                    const { cleaned: newTags, changed } = removeProblematicPhrase(payload.tags, errorInfo.word);
-                    if (changed) {
-                      payload.tags = newTags;
-                      cleanedPayload = true;
-                    }
-                  } else if (errorInfo.field === 'gpt_description_prompt' && payload.gpt_description_prompt) {
-                    const { cleaned: newPrompt, changed } = removeProblematicPhrase(payload.gpt_description_prompt, errorInfo.word);
-                    if (changed) {
-                      payload.gpt_description_prompt = newPrompt;
-                      cleanedPayload = true;
-                    }
-                  }
-                }
+            try {
+              if (payload.tags) {
+                const rephrasedTags = await this.rephraseTagsWithGPT(payload.tags, firstError);
+                payload.tags = rephrasedTags;
+                rephrasedSuccessfully = true;
+                logger.info(`Original tags: "${originalTags}"`);
+                logger.info(`Rephrased tags: "${rephrasedTags}"`);
               }
+            } catch (rephraseError: any) {
+              logger.error('GPT-5.2 rephrasing failed:', rephraseError.message);
             }
             
-            if (cleanedPayload) {
-              // Retry with cleaned payload
-              logger.info('Retrying with cleaned payload...');
-              logger.info(`Original tags: "${originalTags}"`);
-              logger.info(`Cleaned tags: "${payload.tags}"`);
-              if (originalGptPrompt) {
-                logger.info(`Original gpt_description_prompt: "${originalGptPrompt}"`);
-                logger.info(`Cleaned gpt_description_prompt: "${payload.gpt_description_prompt}"`);
-              }
-              
+            if (rephrasedSuccessfully) {
               try {
                 // Get new token if needed
                 if (captchaToken !== null && captchaToken !== 'NO_CAPTCHA') {
@@ -1537,8 +1655,6 @@ Respond in comma separated numbers`;
                 logger.error('Moderation retry failed:', retryError.message);
                 // Continue to return the original error response
               }
-            } else {
-              logger.warn('Could not clean payload for moderation retry');
             }
           }
           
@@ -1569,88 +1685,54 @@ Respond in comma separated numbers`;
       // Otherwise, return whatever we got
       return lastResponse;
     } else {
-      // For non-wait_audio, we poll a few times to catch and handle chained moderation failures.
-      let currentSongIds = response.data.clips.map((a: any) => a.id);
+      // For non-wait_audio, poll once to check for moderation failure
       let finalClips = response.data.clips;
       let currentPayload = { ...payload };
 
-      for (let attempt = 0; attempt < 3; attempt++) {
-        await sleep(2, 3); // Wait a bit for status to update.
+      await sleep(2, 3); // Wait a bit for status to update
 
-        const pollResp = await this.get(currentSongIds);
-
-        // If any song is not in an error state, assume it's processing or complete. Stop retrying.
-        if (!pollResp.every(c => c.status === 'error')) {
-          finalClips = pollResp;
-          break;
-        }
-
-        const moderationFailures = pollResp.filter(a => a.error_message?.includes('contain'));
+      const pollResp = await this.get(response.data.clips.map((a: any) => a.id));
+      
+      // Check if all songs failed due to moderation
+      const allError = pollResp.every(c => c.status === 'error');
+      const moderationFailures = pollResp.filter(a => a.error_message?.includes('contain'));
+      
+      if (allError && moderationFailures.length === pollResp.length && moderationFailures.length > 0) {
+        // All failures are moderation failures - use GPT-5.2 to rephrase and retry
+        const firstError = moderationFailures[0]?.error_message || 'Moderation failure';
+        logger.info(`Moderation failure detected: ${firstError}`);
+        blueLog(`⚠️  Moderation failure: ${firstError}`);
+        blueLog('🤖 Rephrasing tags with GPT-5.2...');
         
-        // If not all errors are moderation-related, stop retrying.
-        if (moderationFailures.length !== pollResp.length) {
-          finalClips = pollResp;
-          break;
-        }
-
-        logger.info(`Quick moderation attempt ${attempt + 1}: cleaning payload and retrying...`);
-        let cleaned = false;
-        
-        for (const audio of moderationFailures) {
-          const info = parseModerationError(audio.error_message || '');
-          if (!info) continue;
-
-          logger.info(`Cleaning "${info.word}" from ${info.field}`);
-
-          if (info.field === 'tags' && currentPayload.tags) {
-            const res = removeProblematicPhrase(currentPayload.tags, info.word);
-            if (res.changed) {
-              currentPayload.tags = res.cleaned;
-              cleaned = true;
-            }
-          } else if (info.field === 'gpt_description_prompt' && currentPayload.gpt_description_prompt) {
-            const res = removeProblematicPhrase(currentPayload.gpt_description_prompt, info.word);
-            if (res.changed) {
-              currentPayload.gpt_description_prompt = res.cleaned;
-              cleaned = true;
-            }
-          }
-        }
-        
-        if (!cleaned) {
-          logger.warn('Quick moderation retry: could not clean payload, aborting.');
-          finalClips = pollResp; // Return last known failing clips
-          break;
-        }
-        
-        logger.info('Retrying with cleaned payload:', currentPayload);
-
-        // Refresh token if needed
-        if (captchaToken !== null && captchaToken !== 'NO_CAPTCHA') {
-            captchaToken = await this.getCaptcha();
-            if (captchaToken !== null && captchaToken !== 'NO_CAPTCHA') {
-                currentPayload.token = captchaToken;
-            } else {
-                delete currentPayload.token;
-            }
-        }
-
         try {
-          const retryResp = await this.client.post(generateEndpoint, currentPayload, { timeout: 10000 });
-          if (retryResp.status === 200) {
-            logger.info('Quick moderation retry submission was successful. Continuing polling...');
-            currentSongIds = retryResp.data.clips.map((a: any) => a.id);
-            finalClips = retryResp.data.clips;
-          } else {
-            logger.error(`Quick moderation retry submission failed with status ${retryResp.status}.`);
-            finalClips = pollResp; // Return last known failing clips
-            break;
+          if (currentPayload.tags) {
+            const rephrasedTags = await this.rephraseTagsWithGPT(currentPayload.tags, firstError);
+            currentPayload.tags = rephrasedTags;
+            logger.info(`Rephrased tags: ${rephrasedTags}`);
+            
+            // Refresh token if needed
+            if (captchaToken !== null && captchaToken !== 'NO_CAPTCHA') {
+              captchaToken = await this.getCaptcha();
+              if (captchaToken !== null && captchaToken !== 'NO_CAPTCHA') {
+                currentPayload.token = captchaToken;
+              } else {
+                delete currentPayload.token;
+              }
+            }
+            
+            // Retry with rephrased tags
+            const retryResp = await this.client.post(generateEndpoint, currentPayload, { timeout: 10000 });
+            if (retryResp.status === 200) {
+              logger.info('Moderation retry successful');
+              finalClips = retryResp.data.clips;
+            }
           }
-        } catch (err: any) {
-          logger.error('Quick moderation retry submission failed with error:', err.message);
-          finalClips = pollResp; // Return last known failing clips
-          break;
+        } catch (rephraseError: any) {
+          logger.error('GPT-5.2 rephrasing or retry failed:', rephraseError.message);
+          finalClips = pollResp;
         }
+      } else {
+        finalClips = pollResp;
       }
 
       return finalClips.map((audio: any) => {
@@ -2025,4 +2107,104 @@ async function waitForCaptchaRequest(page: any, timeoutMs: number): Promise<bool
       }
     }, timeoutMs);
   });
+}
+
+// Standalone exported function for testing
+export async function rephraseTagsWithGPT(tags: string, errorMessage: string): Promise<string> {
+  if (!process.env.OPENAI_API_KEY) {
+    throw new Error('OPENAI_API_KEY environment variable is not set');
+  }
+  
+  if (!tags || tags.trim().length === 0) {
+    return tags;
+  }
+  
+  console.log('\n🤖 ════════════════════════════════════════════════════════');
+  console.log('🤖 REPHRASING TAGS WITH GPT-5.2');
+  console.log('🤖 ════════════════════════════════════════════════════════');
+  console.log(`📝 Original tags: "${tags}"`);
+  console.log(`⚠️  Error message: "${errorMessage}"`);
+  
+  const instructionText = `Error Message: ${errorMessage}
+Tags: ${tags}
+Respond with the new tags in JSON, with the problematic terms removed (or with a new choice of word). Keep everything else same:
+
+{"tags":"<new_description>"}`;
+
+  try {
+    const startTime = Date.now();
+    const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+    
+    const response = await (openai as any).responses.create({
+      model: "gpt-5.2",
+      input: [
+        {
+          role: "user",
+          content: [
+            {
+              type: "input_text",
+              text: instructionText
+            }
+          ]
+        }
+      ],
+      text: {
+        format: {
+          type: "json_object"
+        },
+        verbosity: "low"
+      },
+      reasoning: {
+        effort: "none"
+      },
+      tools: [],
+      store: false,
+      include: []
+    });
+    
+    const solveTime = Date.now() - startTime;
+    
+    // Extract the answer from the response output
+    let responseText = '';
+    if (response.output) {
+      for (const item of response.output) {
+        if (item.type === 'message' && item.content) {
+          for (const content of item.content) {
+            if (content.type === 'output_text') {
+              responseText = content.text?.trim() || '';
+              break;
+            }
+          }
+        }
+      }
+    }
+    
+    if (!responseText) {
+      throw new Error('No response returned from GPT-5.2');
+    }
+    
+    // Parse JSON response
+    let rephrasedTags = '';
+    try {
+      const jsonData = JSON.parse(responseText);
+      rephrasedTags = jsonData.tags || '';
+    } catch (parseError) {
+      throw new Error(`Failed to parse JSON response from GPT-5.2: ${responseText}`);
+    }
+    
+    if (!rephrasedTags) {
+      throw new Error('No tags found in GPT-5.2 response');
+    }
+    
+    console.log(`✅ GPT-5.2 rephrased tags (took ${solveTime}ms)`);
+    console.log(`📦 Response text: "${responseText}"`);
+    console.log(`📦 Rephrased tags: "${rephrasedTags}"`);
+    console.log('🤖 ════════════════════════════════════════════════════════\n');
+    
+    return rephrasedTags;
+    
+  } catch (error: any) {
+    console.error(`❌ GPT-5.2 rephrasing error: ${error.message}`);
+    throw error;
+  }
 }
