@@ -33,10 +33,10 @@ export const isPage = (target: any): target is Page => {
  * Waits for an hCaptcha image requests and then waits for all of them to end
  * @param page
  * @param signal `const controller = new AbortController(); controller.status`
- * @param maxWaitMs Maximum time to wait for initial request (default: 5000ms)
+ * @param maxWaitMs Maximum time to wait for initial request (default: 2000ms)
  * @returns {Promise<void>} 
  */
-export const waitForRequests = (page: Page, signal: AbortSignal, maxWaitMs: number = 5000): Promise<void> => {
+export const waitForRequests = (page: Page, signal: AbortSignal, maxWaitMs: number = 2000): Promise<void> => {
   return new Promise((resolve, reject) => {
     // Match both standard hCaptcha and enterprise/custom domain patterns:
     // - Standard: https://img*.hcaptcha.com/*

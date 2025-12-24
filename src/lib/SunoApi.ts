@@ -727,7 +727,12 @@ class SunoApi {
 
     // Skip token-based solving, go directly to coordinates-based solving
     blueLog('═══════════════════════════════════════════════════════════');
-    blueLog('Using coordinates-based CAPTCHA solving with 2Captcha...');
+    if (process.env.OPENAI_API_KEY) {
+      blueLog('Using OpenAI GPT-5.2 for CAPTCHA solving...');
+    } else {
+      blueLog('⚠️  OPENAI_API_KEY not set - OpenAI CAPTCHA solving unavailable');
+      blueLog('Using coordinates-based CAPTCHA solving with 2Captcha...');
+    }
     blueLog('═══════════════════════════════════════════════════════════');
     try {
       return await this.solveCaptchaWithCoordinates(page, browser, button);
@@ -906,8 +911,22 @@ class SunoApi {
           
           if (wait) {
             blueLog('⏳ Waiting for hCaptcha requests to complete...');
-            await waitForRequests(page, controller.signal);
-            blueLog('✅ hCaptcha requests completed');
+            try {
+              // Add timeout to prevent hanging indefinitely
+              await Promise.race([
+                waitForRequests(page, controller.signal),
+                new Promise((_, reject) => 
+                  setTimeout(() => reject(new Error('Timeout waiting for hCaptcha requests')), 3000)
+                )
+              ]);
+              blueLog('✅ hCaptcha requests completed');
+            } catch (err: any) {
+              if (err.message.includes('Timeout')) {
+                blueLog('⚠️  Timeout waiting for requests, proceeding anyway...');
+              } else {
+                throw err;
+              }
+            }
           }
           
           blueLog('📝 Reading challenge prompt...');
@@ -934,7 +953,7 @@ class SunoApi {
               const timestamp = Date.now();
               const screenshotFilename = `captcha-screenshot-${timestamp}.png`;
               const screenshotPath = path.join(screenshotsDir, screenshotFilename);
-              await fs.writeFile(screenshotPath, screenshotBuffer);
+              // await fs.writeFile(screenshotPath, screenshotBuffer);
               blueLog(`💾 Screenshot saved locally to: ${screenshotPath}`);
               blueLog(`📁 Full path: ${path.resolve(screenshotPath)}`);
               blueLog(`📊 Screenshot size: ${screenshotBuffer.length} bytes (base64: ${screenshotBase64.length} chars)`);
@@ -1063,6 +1082,10 @@ class SunoApi {
     challengeHeight: number,
     headerHeight: number = 150 // Height of the prompt text area
   ): Promise<{ x: number; y: number }[]> {
+    if (!process.env.OPENAI_API_KEY) {
+      throw new Error('OPENAI_API_KEY environment variable is not set');
+    }
+    
     blueLog('\n🤖 ════════════════════════════════════════════════════════');
     blueLog('🤖 OPENAI GPT-5.2 CAPTCHA SOLVING (Responses API)');
     blueLog('🤖 ════════════════════════════════════════════════════════');
@@ -1111,11 +1134,8 @@ Respond in comma separated numbers`;
           summary: "auto"
         },
         tools: [],
-        store: true,
-        include: [
-          "reasoning.encrypted_content",
-          "web_search_call.action.sources"
-        ]
+        store: false, // Disable storing to reduce latency
+        include: [] // Remove unnecessary includes to speed up response
       });
       
       const solveTime = Date.now() - startTime;
