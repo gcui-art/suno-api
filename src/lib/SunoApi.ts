@@ -490,7 +490,12 @@ class SunoApi {
       '--disable-features=site-per-process',
       '--disable-features=IsolateOrigins',
       '--disable-extensions',
-      '--disable-infobars'
+      '--disable-infobars',
+      // Prevent browser from stealing focus on macOS
+      '--noerrdialogs',
+      '--no-first-run',
+      '--window-position=-2400,-2400', // Move window off-screen
+      '--window-size=800,600'
     ];
     // Check for GPU acceleration, as it is recommended to turn it off for Docker
     if (yn(process.env.BROWSER_DISABLE_GPU, { default: false }))
@@ -552,7 +557,7 @@ class SunoApi {
         await page.goto('https://suno.com/create', { referer: 'https://www.google.com/', waitUntil: 'domcontentloaded', timeout: 0 });
       } else {
         console.log("Existing /create tab found, bringing to front...");
-        await page.bringToFront();
+        // await page.bringToFront(); // Commented out to prevent focus stealing
       }
     } catch (error: any) {
       // Browser context was closed, clear cache and retry once
@@ -568,7 +573,7 @@ class SunoApi {
           await page.goto('https://suno.com/create', { referer: 'https://www.google.com/', waitUntil: 'domcontentloaded', timeout: 0 });
         } else {
           console.log("Existing /create tab found, bringing to front...");
-          await page.bringToFront();
+          // await page.bringToFront(); // Commented out to prevent focus stealing
         }
       } else {
         throw error;
@@ -1670,7 +1675,7 @@ Respond in comma separated numbers`;
         page = await browser.newPage();
         await page.goto('https://suno.com/create', { referer: 'https://www.google.com/', waitUntil: 'domcontentloaded', timeout: 0 });
       } else {
-        await page.bringToFront();
+        // await page.bringToFront(); // Commented out to prevent focus stealing
       }
     } catch (error: any) {
       // Browser context was closed, clear cache and retry once
@@ -1684,7 +1689,7 @@ Respond in comma separated numbers`;
           page = await browser.newPage();
           await page.goto('https://suno.com/create', { referer: 'https://www.google.com/', waitUntil: 'domcontentloaded', timeout: 0 });
         } else {
-          await page.bringToFront();
+          // await page.bringToFront(); // Commented out to prevent focus stealing
         }
       } else {
         throw error;
