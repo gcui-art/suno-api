@@ -1585,6 +1585,8 @@ Respond with the new tags in JSON, with the problematic terms removed (or with a
     if (wait_audio) {
       const startTime = Date.now();
       let lastResponse: AudioInfo[] = [];
+      let moderationRetryCount = 0;
+      const MAX_MODERATION_RETRIES = 5;
       await sleep(5, 5);
       while (Date.now() - startTime < 100000) {
         const response = await this.get(songIds);
@@ -1601,11 +1603,12 @@ Respond with the new tags in JSON, with the problematic terms removed (or with a
             audio.error_message && audio.error_message.includes('contain')
           );
           
-          if (moderationFailures.length === response.length && moderationFailures.length > 0) {
+          if (moderationFailures.length === response.length && moderationFailures.length > 0 && moderationRetryCount < MAX_MODERATION_RETRIES) {
             // All failures are moderation failures, rephrase with GPT-5.2 and retry
+            moderationRetryCount++;
             const firstError = moderationFailures[0]?.error_message || 'Moderation failure';
-            logger.info('All songs failed due to moderation. Rephrasing with GPT-5.2...');
-            blueLog(`⚠️  Moderation failure: ${firstError}`);
+            logger.info(`All songs failed due to moderation. Retry attempt ${moderationRetryCount}/${MAX_MODERATION_RETRIES}. Rephrasing with GPT-5.2...`);
+            blueLog(`⚠️  Moderation failure (attempt ${moderationRetryCount}/${MAX_MODERATION_RETRIES}): ${firstError}`);
             blueLog('🤖 Rephrasing tags with GPT-5.2...');
             
             const originalTags = payload.tags;
@@ -1644,7 +1647,7 @@ Respond with the new tags in JSON, with the problematic terms removed (or with a
                 if (retryResponse.status === 200) {
                   // Update songIds with new response
                   const newSongIds = retryResponse.data.clips.map((audio: any) => audio.id);
-                  logger.info(`Moderation retry successful. New song IDs: ${newSongIds.join(', ')}`);
+                  logger.info(`Moderation retry ${moderationRetryCount} successful. New song IDs: ${newSongIds.join(', ')}`);
                   // Continue with the new song IDs
                   songIds.length = 0;
                   songIds.push(...newSongIds);
@@ -1652,16 +1655,32 @@ Respond with the new tags in JSON, with the problematic terms removed (or with a
                   continue; // Continue the wait loop with new songs
                 }
               } catch (retryError: any) {
-                logger.error('Moderation retry failed:', retryError.message);
-                // Continue to return the original error response
+                logger.error(`Moderation retry ${moderationRetryCount} failed:`, retryError.message);
+                // Continue to return the original error response if max retries reached
+                if (moderationRetryCount >= MAX_MODERATION_RETRIES) {
+                  console.log('\x1b[31m%s\x1b[0m', 'FAILED RESPONSE: ' + JSON.stringify(response, null, 2));
+                  console.log('\x1b[31m%s\x1b[0m', `SONG GENERATION FAILED after ${MAX_MODERATION_RETRIES} moderation retries.`);
+                  return response;
+                }
               }
+            } else {
+              // Could not rephrase, stop retrying
+              console.log('\x1b[31m%s\x1b[0m', 'FAILED RESPONSE: ' + JSON.stringify(response, null, 2));
+              console.log('\x1b[31m%s\x1b[0m', 'SONG GENERATION FAILED - Could not rephrase tags.');
+              return response;
             }
+          } else if (moderationRetryCount >= MAX_MODERATION_RETRIES) {
+            // Max retries reached
+            logger.warn(`Max moderation retries (${MAX_MODERATION_RETRIES}) reached. Stopping.`);
+            console.log('\x1b[31m%s\x1b[0m', 'FAILED RESPONSE: ' + JSON.stringify(response, null, 2));
+            console.log('\x1b[31m%s\x1b[0m', `SONG GENERATION FAILED after ${MAX_MODERATION_RETRIES} moderation retries.`);
+            return response;
+          } else {
+            // Not all errors are moderation failures or no moderation failures
+            console.log('\x1b[31m%s\x1b[0m', 'FAILED RESPONSE: ' + JSON.stringify(response, null, 2));
+            console.log('\x1b[31m%s\x1b[0m', 'SONG GENERATION FAILED.');
+            return response;
           }
-          
-          // Print the full error response in red and a clear failure message
-          console.log('\x1b[31m%s\x1b[0m', 'FAILED RESPONSE: ' + JSON.stringify(response, null, 2));
-          console.log('\x1b[31m%s\x1b[0m', 'SONG GENERATION FAILED.');
-          return response;
         }
         lastResponse = response;
         await sleep(3, 6);
@@ -1685,23 +1704,41 @@ Respond with the new tags in JSON, with the problematic terms removed (or with a
       // Otherwise, return whatever we got
       return lastResponse;
     } else {
-      // For non-wait_audio, poll once to check for moderation failure
+      // For non-wait_audio, poll and retry moderation failures up to 5 times
       let finalClips = response.data.clips;
       let currentPayload = { ...payload };
+      let currentSongIds = response.data.clips.map((a: any) => a.id);
+      const MAX_MODERATION_RETRIES = 5;
 
-      await sleep(2, 3); // Wait a bit for status to update
+      for (let retryAttempt = 0; retryAttempt < MAX_MODERATION_RETRIES; retryAttempt++) {
+        await sleep(2, 3); // Wait a bit for status to update
 
-      const pollResp = await this.get(response.data.clips.map((a: any) => a.id));
-      
-      // Check if all songs failed due to moderation
-      const allError = pollResp.every(c => c.status === 'error');
-      const moderationFailures = pollResp.filter(a => a.error_message?.includes('contain'));
-      
-      if (allError && moderationFailures.length === pollResp.length && moderationFailures.length > 0) {
+        const pollResp = await this.get(currentSongIds);
+        
+        // If any song is not in an error state, assume it's processing or complete. Stop retrying.
+        if (!pollResp.every(c => c.status === 'error')) {
+          finalClips = pollResp;
+          break;
+        }
+
+        // Check if all songs failed due to moderation
+        const moderationFailures = pollResp.filter(a => a.error_message?.includes('contain'));
+        
+        // If not all errors are moderation-related, stop retrying.
+        if (moderationFailures.length !== pollResp.length) {
+          finalClips = pollResp;
+          break;
+        }
+
+        if (moderationFailures.length === 0) {
+          finalClips = pollResp;
+          break;
+        }
+
         // All failures are moderation failures - use GPT-5.2 to rephrase and retry
         const firstError = moderationFailures[0]?.error_message || 'Moderation failure';
-        logger.info(`Moderation failure detected: ${firstError}`);
-        blueLog(`⚠️  Moderation failure: ${firstError}`);
+        logger.info(`Moderation retry attempt ${retryAttempt + 1}/${MAX_MODERATION_RETRIES}: ${firstError}`);
+        blueLog(`⚠️  Moderation failure (attempt ${retryAttempt + 1}/${MAX_MODERATION_RETRIES}): ${firstError}`);
         blueLog('🤖 Rephrasing tags with GPT-5.2...');
         
         try {
@@ -1723,16 +1760,25 @@ Respond with the new tags in JSON, with the problematic terms removed (or with a
             // Retry with rephrased tags
             const retryResp = await this.client.post(generateEndpoint, currentPayload, { timeout: 10000 });
             if (retryResp.status === 200) {
-              logger.info('Moderation retry successful');
+              logger.info(`Moderation retry ${retryAttempt + 1} successful`);
+              currentSongIds = retryResp.data.clips.map((a: any) => a.id);
               finalClips = retryResp.data.clips;
+              // Continue loop to check if new songs also fail moderation
+            } else {
+              logger.error(`Moderation retry ${retryAttempt + 1} failed with status ${retryResp.status}`);
+              finalClips = pollResp;
+              break;
             }
+          } else {
+            logger.warn('No tags to rephrase, stopping retries');
+            finalClips = pollResp;
+            break;
           }
         } catch (rephraseError: any) {
-          logger.error('GPT-5.2 rephrasing or retry failed:', rephraseError.message);
+          logger.error(`GPT-5.2 rephrasing or retry failed (attempt ${retryAttempt + 1}):`, rephraseError.message);
           finalClips = pollResp;
+          break;
         }
-      } else {
-        finalClips = pollResp;
       }
 
       return finalClips.map((audio: any) => {
