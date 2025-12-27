@@ -11,18 +11,36 @@ export async function POST(req: NextRequest) {
     try {
       const body = await req.json();
       console.log('API received body:', JSON.stringify(body, null, 2));
-      const { prompt, gpt_description_prompt, tags, title, make_instrumental, model, wait_audio, negative_tags } = body;
-      console.log('Calling custom_generate with gpt_description_prompt:', gpt_description_prompt);
-      const audioInfo = await (await sunoApi((await cookies()).toString())).custom_generate(
-        prompt || '', 
-        tags, 
-        title,
-        Boolean(make_instrumental),
-        model || DEFAULT_MODEL,
-        Boolean(wait_audio),
-        negative_tags,
-        gpt_description_prompt  // Pass the new parameter
-      );
+      const { prompt, gpt_description_prompt, tags, title, make_instrumental, model, wait_audio, negative_tags, use_ui } = body;
+      
+      const api = await sunoApi((await cookies()).toString());
+      let audioInfo;
+      
+      // If use_ui is true, use UI-based generation (less likely to trigger CAPTCHA)
+      if (use_ui) {
+        console.log('Using UI-based generation (use_ui=true)');
+        audioInfo = await api.generateViaUI(
+          prompt || '',
+          tags || '',
+          title || '',
+          Boolean(make_instrumental),
+          Boolean(wait_audio)
+        );
+      } else {
+        // Standard API-based generation
+        console.log('Using API-based generation (use_ui=false)');
+        console.log('Calling custom_generate with gpt_description_prompt:', gpt_description_prompt);
+        audioInfo = await api.custom_generate(
+          prompt || '', 
+          tags, 
+          title,
+          Boolean(make_instrumental),
+          model || DEFAULT_MODEL,
+          Boolean(wait_audio),
+          negative_tags,
+          gpt_description_prompt  // Pass the new parameter
+        );
+      }
       
       // Check if all items have error status (e.g., moderation failures)
       const allErrors = Array.isArray(audioInfo) && audioInfo.length > 0 && 

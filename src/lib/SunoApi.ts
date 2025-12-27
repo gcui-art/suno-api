@@ -1453,6 +1453,385 @@ Respond with the new tags in JSON, with the problematic terms removed (or with a
   }
 
   /**
+   * Generate songs via the Suno UI instead of direct API calls.
+   * This method navigates the browser UI, fills in the form, and intercepts the response.
+   * Less likely to trigger CAPTCHA compared to direct API calls.
+   * 
+   * @param prompt Lyrics text (leave empty for instrumental)
+   * @param tags Style/description for the song
+   * @param title Song title
+   * @param make_instrumental Whether to generate instrumental only
+   * @param wait_audio Whether to wait for audio to complete
+   * @returns Promise resolving to array of AudioInfo objects
+   */
+  public async generateViaUI(
+    prompt: string,
+    tags: string,
+    title: string,
+    make_instrumental: boolean = false,
+    wait_audio: boolean = false
+  ): Promise<AudioInfo[]> {
+    const startTime = Date.now();
+    blueLog('\n═══════════════════════════════════════════════════════════');
+    blueLog('🎵 UI-BASED SONG GENERATION');
+    blueLog('═══════════════════════════════════════════════════════════\n');
+    
+    const browser = await this.launchBrowser();
+    
+    // Find or create a page for /create
+    let page = (await browser.pages()).find(p => p.url().includes('/create'));
+    if (!page) {
+      blueLog('Opening new tab for suno.com/create...');
+      page = await browser.newPage();
+      await page.goto('https://suno.com/create', { waitUntil: 'domcontentloaded', timeout: 30000 });
+    } else {
+      blueLog('Using existing /create tab');
+    }
+    
+    // Close any popups
+    try {
+      await page.getByLabel('Close').click({ timeout: 2000 });
+    } catch {}
+    
+    // Set up response listener to capture the generate API response
+    let generatedClips: any[] = [];
+    let responseReceived = false;
+    let responseError: string | null = null;
+    
+    // Helper for small delays
+    const humanDelay = async (min = 100, max = 300) => {
+      const delay = Math.random() * (max - min) + min;
+      await new Promise(r => setTimeout(r, delay));
+    };
+    
+    // Helper for pasting text
+    const pasteText = async (locator: any, text: string) => {
+      await locator.click();
+      await humanDelay(50, 100);
+      await locator.fill(text);
+      await humanDelay(100, 200);
+    };
+    
+    // Listen for the response
+    page.on('response', async (response: any) => {
+      const url = response.url();
+      if (url.includes('/api/generate/v2')) {
+        blueLog('\n📡 Captured generate API response!');
+        blueLog(`📦 Response status: ${response.status()}`);
+        
+        try {
+          const responseBody = await response.json();
+          
+          if (responseBody.clips) {
+            generatedClips = responseBody.clips;
+            blueLog(`🎵 Generated ${generatedClips.length} songs`);
+          } else if (responseBody.id) {
+            generatedClips = [responseBody];
+            blueLog(`🎵 Generated song: ${responseBody.id}`);
+          } else if (responseBody.detail) {
+            responseError = responseBody.detail;
+            blueLog(`⚠️ API error: ${responseBody.detail}`);
+          }
+          
+          responseReceived = true;
+        } catch (e: any) {
+          blueLog(`Could not parse response: ${e.message}`);
+        }
+      }
+    });
+    
+    // Log the request payload for debugging
+    page.on('request', (request: any) => {
+      const url = request.url();
+      if (url.includes('/api/generate/v2')) {
+        blueLog('\n📤 Captured generate API request!');
+        try {
+          const payload = request.postDataJSON();
+          blueLog(`📝 Payload: title="${payload.title}", tags="${payload.tags?.substring(0, 50)}...", instrumental=${payload.make_instrumental}`);
+        } catch {}
+      }
+    });
+    
+    // Step 1: Switch to Custom mode
+    blueLog('\n📝 Step 1: Switching to Custom mode...');
+    try {
+      const customButton = page.locator('button:has-text("Custom")').first();
+      await customButton.click({ timeout: 3000 });
+      blueLog('  ✓ Switched to Custom mode');
+      await humanDelay(300, 500);
+    } catch {
+      blueLog('  (Already in Custom mode or button not found)');
+    }
+    
+    // Step 2: Fill lyrics
+    blueLog('\n📝 Step 2: Filling lyrics...');
+    const lyricsSelectors = [
+      'textarea[placeholder*="Write some lyrics or a prompt"]',
+      'textarea[placeholder*="lyrics"]',
+      'textarea[placeholder*="instrumental"]'
+    ];
+    
+    let lyricsTextarea = null;
+    for (const selector of lyricsSelectors) {
+      try {
+        const el = page.locator(selector).first();
+        await el.waitFor({ state: 'visible', timeout: 3000 });
+        lyricsTextarea = el;
+        blueLog(`  Found lyrics textarea: ${selector}`);
+        break;
+      } catch {}
+    }
+    
+    if (lyricsTextarea) {
+      if (prompt && !make_instrumental) {
+        await pasteText(lyricsTextarea, prompt);
+        blueLog('  ✓ Lyrics pasted');
+      } else {
+        blueLog('  (No lyrics - instrumental mode)');
+      }
+    } else {
+      throw new Error('Could not find lyrics textarea');
+    }
+    await humanDelay(200, 400);
+    
+    // Step 3: Fill style/tags
+    blueLog('\n📝 Step 3: Filling style/tags...');
+    const styleSelectors = [
+      'textarea[placeholder*="war song, synthwave"]',
+      'textarea[placeholder*="war song"]',
+      'textarea[placeholder*="synthwave"]',
+      'textarea[placeholder*="bpm"]',
+      'textarea[placeholder*="gabber"]'
+    ];
+    
+    let styleFilled = false;
+    for (const selector of styleSelectors) {
+      try {
+        const styleTextarea = page.locator(selector).first();
+        await styleTextarea.waitFor({ state: 'visible', timeout: 2000 });
+        await pasteText(styleTextarea, tags);
+        blueLog(`  ✓ Style/tags pasted`);
+        styleFilled = true;
+        break;
+      } catch {}
+    }
+    
+    if (!styleFilled) {
+      blueLog('  ⚠️ Style textarea not found');
+    }
+    await humanDelay(200, 400);
+    
+    // Step 4: Fill title
+    blueLog('\n📝 Step 4: Filling title...');
+    const titleInputs = await page.locator('input[placeholder="Song Title (Optional)"]').all();
+    let titleFilled = false;
+    
+    for (const input of titleInputs) {
+      const isVisible = await input.isVisible();
+      if (isVisible) {
+        await pasteText(input, title);
+        blueLog('  ✓ Title pasted');
+        titleFilled = true;
+        break;
+      }
+    }
+    
+    if (!titleFilled) {
+      blueLog('  ⚠️ No visible title input found');
+    }
+    await humanDelay(200, 400);
+    
+    // Step 5: Toggle instrumental if needed
+    if (make_instrumental) {
+      blueLog('\n🎹 Step 5: Enabling instrumental mode...');
+      const instrumentalSelectors = [
+        'button:has-text("Instrumental")',
+        '[aria-label*="instrumental" i]',
+        'label:has-text("Instrumental")',
+      ];
+      
+      let instrumentalToggled = false;
+      for (const selector of instrumentalSelectors) {
+        try {
+          const toggle = page.locator(selector).first();
+          await toggle.waitFor({ state: 'visible', timeout: 2000 });
+          await toggle.click();
+          blueLog(`  ✓ Instrumental mode enabled`);
+          instrumentalToggled = true;
+          break;
+        } catch {}
+      }
+      
+      if (!instrumentalToggled) {
+        try {
+          const instrumentalText = page.getByText('Instrumental', { exact: false }).first();
+          await instrumentalText.click({ timeout: 2000 });
+          blueLog('  ✓ Instrumental mode enabled (by text)');
+          instrumentalToggled = true;
+        } catch {}
+      }
+      
+      if (!instrumentalToggled) {
+        blueLog('  ⚠️ Could not find instrumental toggle');
+      }
+      await humanDelay(200, 400);
+    }
+    
+    // Step 6: Click Create
+    blueLog('\n🚀 Step 6: Clicking Create...');
+    const createButton = page.locator('button[aria-label="Create song"]');
+    await createButton.waitFor({ state: 'visible', timeout: 10000 });
+    
+    const buttonStart = Date.now();
+    while (!(await createButton.isEnabled())) {
+      if (Date.now() - buttonStart > 10000) {
+        throw new Error('Create button not enabled after 10s');
+      }
+      await page.waitForTimeout(200);
+    }
+    
+    await createButton.click();
+    blueLog('  ✓ Create button clicked!');
+    
+    // Step 7: Wait for response or handle captcha
+    blueLog('\n⏳ Step 7: Waiting for response...');
+    
+    const timeout = 60000;
+    const waitStart = Date.now();
+    let captchaAttempts = 0;
+    const maxCaptchaAttempts = 5;
+    
+    while (!responseReceived && (Date.now() - waitStart) < timeout) {
+      // Check for captcha - but don't close browser, just solve it inline
+      try {
+        const captchaIframe = await page.$('iframe[src*="hcaptcha.com/captcha"]');
+        if (captchaIframe && captchaAttempts < maxCaptchaAttempts) {
+          captchaAttempts++;
+          blueLog(`\n⚠️ hCaptcha detected! Solving attempt ${captchaAttempts}/${maxCaptchaAttempts}...`);
+          
+          // Get the challenge iframe
+          const frame = page.frameLocator('iframe[title*="hCaptcha"], iframe[src*="hcaptcha"]');
+          const challenge = frame.locator('.challenge-container');
+          
+          try {
+            // Wait for challenge to load
+            await challenge.waitFor({ state: 'visible', timeout: 5000 });
+            
+            // Get prompt text
+            const promptText = await challenge.locator('.prompt-text').first().innerText();
+            blueLog(`📋 Challenge: "${promptText}"`);
+            
+            // Get dimensions and screenshot
+            const challengeBox = await challenge.boundingBox();
+            if (challengeBox) {
+              const screenshotBuffer = await challenge.screenshot({ timeout: 5000 });
+              const screenshotBase64 = screenshotBuffer.toString('base64');
+              
+              // Solve with OpenAI
+              const coordinates = await this.solveCaptchaWithOpenAI(
+                screenshotBase64,
+                promptText,
+                challengeBox.width,
+                challengeBox.height,
+                150
+              );
+              
+              blueLog(`🖱️ Clicking ${coordinates.length} positions...`);
+              
+              // Click each coordinate
+              for (const coord of coordinates) {
+                await this.click(challenge, { x: coord.x, y: coord.y });
+                await humanDelay(200, 400);
+              }
+              
+              // Click verify/submit
+              await humanDelay(300, 500);
+              try {
+                await frame.locator('.button-submit').click({ timeout: 3000 });
+                blueLog('✅ Submitted captcha');
+              } catch {
+                blueLog('⚠️ Could not click submit button');
+              }
+              
+              // Wait a moment to see if captcha is solved
+              await page.waitForTimeout(2000);
+            }
+          } catch (captchaError: any) {
+            blueLog(`❌ Captcha error: ${captchaError.message}`);
+          }
+        }
+      } catch {}
+      
+      // Small delay before checking again
+      if (!responseReceived) {
+        await page.waitForTimeout(1000);
+      }
+    }
+    
+    if (responseError) {
+      throw new Error(`API error: ${responseError}`);
+    }
+    
+    if (!responseReceived || generatedClips.length === 0) {
+      throw new Error('No response received within timeout');
+    }
+    
+    const costTime = Date.now() - startTime;
+    blueLog('\n═══════════════════════════════════════════════════════════');
+    blueLog('📊 UI GENERATION COMPLETE');
+    blueLog(`⏱️  Total time: ${costTime}ms`);
+    blueLog(`🎵 Generated ${generatedClips.length} songs`);
+    blueLog('═══════════════════════════════════════════════════════════\n');
+    
+    // Convert to AudioInfo format
+    const songIds = generatedClips.map((clip: any) => clip.id);
+    
+    // If wait_audio, poll for completion
+    if (wait_audio) {
+      await sleep(5, 5);
+      const maxWaitTime = 100000;
+      const pollStart = Date.now();
+      
+      while (Date.now() - pollStart < maxWaitTime) {
+        const response = await this.get(songIds);
+        const allCompleted = response.every(
+          (audio) => audio.status === 'streaming' || audio.status === 'complete'
+        );
+        const allError = response.every((audio) => audio.status === 'error');
+        
+        if (allCompleted) {
+          return response;
+        }
+        if (allError) {
+          return response;
+        }
+        
+        await sleep(3, 6);
+        await this.keepAlive(true);
+      }
+    }
+    
+    // Return immediate response
+    return generatedClips.map((clip: any) => ({
+      id: clip.id,
+      title: clip.title || title,
+      image_url: clip.image_url,
+      lyric: prompt,
+      audio_url: clip.audio_url || '',
+      video_url: clip.video_url || '',
+      created_at: clip.created_at,
+      model_name: clip.model_name || 'chirp-v4',
+      status: clip.status,
+      gpt_description_prompt: undefined,
+      prompt: prompt,
+      tags: tags,
+      negative_tags: undefined,
+      duration: undefined,
+      error_message: clip.error_message
+    }));
+  }
+
+  /**
    * Generates songs based on the provided parameters.
    *
    * @param prompt The text prompt to generate songs from.

@@ -493,8 +493,8 @@ async function generateViaUI(songParams) {
   await createButton.click();
   console.log('  ✓ Create button clicked!');
   
-  // Step 6: Wait for response or handle captcha
-  console.log('\n⏳ Step 6: Waiting for response...');
+  // Step 7: Wait for response or handle captcha
+  console.log('\n⏳ Step 7: Waiting for response...');
   
   const timeout = 60000; // 60 seconds
   const startTime = Date.now();
@@ -530,13 +530,51 @@ async function generateViaUI(songParams) {
       fs.mkdirSync('captcha-screenshots');
     }
     
-    const result = await generateViaUI(TEST_SONG);
-    console.log('\n✅ Test complete!');
-    console.log('Song IDs:', result);
+    // Parse command line args
+    const args = process.argv.slice(2);
+    const testType = args[0] || 'lyrics'; // 'lyrics', 'instrumental', or 'both'
+    
+    console.log('╔═══════════════════════════════════════════════════════════╗');
+    console.log('║           SUNO UI GENERATION TEST SUITE                   ║');
+    console.log('╚═══════════════════════════════════════════════════════════╝');
+    console.log(`\nTest mode: ${testType}`);
+    console.log('Usage: node test-ui-generate.js [lyrics|instrumental|both]\n');
+    
+    const results = {};
+    
+    if (testType === 'lyrics' || testType === 'both') {
+      console.log('\n🎤 ═══════════════════════════════════════════════════════════');
+      console.log('🎤 TEST 1: WITH LYRICS (Wordless choir prompt)');
+      console.log('🎤 ═══════════════════════════════════════════════════════════');
+      results.withLyrics = await generateViaUI(TEST_SONG_WITH_LYRICS);
+      console.log('\n✅ Lyrics test complete!');
+      console.log('Song IDs:', results.withLyrics.map(s => s.id));
+      
+      // Wait a bit between tests if running both
+      if (testType === 'both') {
+        console.log('\n⏳ Waiting 5 seconds before next test...\n');
+        await new Promise(r => setTimeout(r, 5000));
+      }
+    }
+    
+    if (testType === 'instrumental' || testType === 'both') {
+      console.log('\n🎹 ═══════════════════════════════════════════════════════════');
+      console.log('🎹 TEST 2: INSTRUMENTAL (Gold Made, Gifts Given)');
+      console.log('🎹 ═══════════════════════════════════════════════════════════');
+      results.instrumental = await generateViaUI(TEST_SONG_INSTRUMENTAL);
+      console.log('\n✅ Instrumental test complete!');
+      console.log('Song IDs:', results.instrumental.map(s => s.id));
+    }
+    
+    // Final summary
+    console.log('\n╔═══════════════════════════════════════════════════════════╗');
+    console.log('║                    FINAL RESULTS                          ║');
+    console.log('╚═══════════════════════════════════════════════════════════╝');
+    console.log(JSON.stringify(results, null, 2));
+    
   } catch (e) {
     console.error('\n❌ Error:', e.message);
     console.error(e.stack);
     process.exit(1);
   }
 })();
-
