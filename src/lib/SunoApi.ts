@@ -1129,6 +1129,7 @@ class SunoApi {
 
 ${promptText}
 
+NOTE: The images are designed to trick you, so they may be confusing, surreal, or hyper-stylized. Often times, it may look a certain way, but if you look at it differently, the correct answer may be different. If a sample image is provided at the top above the grid, spend 50% of your energy understanding it correctly, first, before looking at the 3x3 grid below. Lastly, there usually are 2 or 3 right answers (but not always). Almost never more than 4. 
 Respond in comma separated numbers`;
 
     blueLog(`📝 Instruction: "${promptText}"`);

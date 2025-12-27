@@ -16,8 +16,9 @@ export async function POST(req: NextRequest) {
       const api = await sunoApi((await cookies()).toString());
       let audioInfo;
       
-      // If use_ui is true, use UI-based generation (less likely to trigger CAPTCHA)
-      if (use_ui) {
+      // Default to direct API generation
+      // Only use UI-based generation if use_ui is explicitly set to true
+      if (use_ui === true) {
         console.log('Using UI-based generation (use_ui=true)');
         audioInfo = await api.generateViaUI(
           prompt || '',
@@ -27,8 +28,8 @@ export async function POST(req: NextRequest) {
           Boolean(wait_audio)
         );
       } else {
-        // Standard API-based generation
-        console.log('Using API-based generation (use_ui=false)');
+        // Direct API-based generation (default)
+        console.log('Using direct API generation (default)');
         console.log('Calling custom_generate with gpt_description_prompt:', gpt_description_prompt);
         audioInfo = await api.custom_generate(
           prompt || '', 
@@ -38,7 +39,7 @@ export async function POST(req: NextRequest) {
           model || DEFAULT_MODEL,
           Boolean(wait_audio),
           negative_tags,
-          gpt_description_prompt  // Pass the new parameter
+          gpt_description_prompt
         );
       }
       
