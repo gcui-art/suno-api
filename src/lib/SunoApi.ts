@@ -769,7 +769,9 @@ class SunoApi {
     try {
       return await this.solveCaptchaWithCoordinates(page, browser, button);
     } catch (fallbackErr: any) {
-      browser.browser()?.close();
+      if (!process.env.CDP_BROWSER_ENDPOINT) {
+        browser.browser()?.close();
+      }
       throw new Error('Failed to solve hCaptcha with coordinates method: ' + fallbackErr.message);
     }
     
@@ -848,14 +850,16 @@ class SunoApi {
       // Set a longer timeout for manual solving (5 minutes)
       const timeout = setTimeout(() => {
         console.log('Timeout waiting for manual CAPTCHA solving. Closing browser.');
-        browser.browser()?.close();
+        if (!process.env.CDP_BROWSER_ENDPOINT) {
+          browser.browser()?.close();
+        }
         reject(new Error('Timeout waiting for manual CAPTCHA solving. Please solve the CAPTCHA within 5 minutes.'));
       }, 300000); // 5 minutes
       
       page.route('**/api/generate/v2*/**', async (route: any) => {  // Catches both /v2/ and /v2-web/
         try {
           clearTimeout(timeout);
-          logger.info('API request intercepted. CAPTCHA solved manually. Closing browser.');
+          logger.info('API request intercepted. CAPTCHA solved manually.');
           const request = route.request();
           const requestData = request.postDataJSON();
           
@@ -869,13 +873,17 @@ class SunoApi {
           const hcaptchaToken = requestData?.token;
           if (!hcaptchaToken) {
             route.abort();
-            browser.browser()?.close();
+            if (!process.env.CDP_BROWSER_ENDPOINT) {
+              browser.browser()?.close();
+            }
             reject(new Error('No hCaptcha token found in request payload'));
             return;
           }
           
           route.abort();
-          browser.browser()?.close();
+          if (!process.env.CDP_BROWSER_ENDPOINT) {
+            browser.browser()?.close();
+          }
           resolve(hcaptchaToken);
         } catch(err) {
           clearTimeout(timeout);
@@ -985,7 +993,7 @@ class SunoApi {
               const timestamp = Date.now();
               const screenshotFilename = `captcha-screenshot-${timestamp}.png`;
               const screenshotPath = path.join(screenshotsDir, screenshotFilename);
-              // await fs.writeFile(screenshotPath, screenshotBuffer);
+              await fs.writeFile(screenshotPath, screenshotBuffer);
               blueLog(`💾 Screenshot saved locally to: ${screenshotPath}`);
               blueLog(`📁 Full path: ${path.resolve(screenshotPath)}`);
               blueLog(`📊 Screenshot size: ${screenshotBuffer.length} bytes (base64: ${screenshotBase64.length} chars)`);
@@ -994,10 +1002,10 @@ class SunoApi {
               const challengeBox = await challenge.boundingBox();
               if (!challengeBox) throw new Error('Could not get challenge bounding box');
               
-              blueLog('\n📤 Step 3: Sending to OpenAI Vision...');
+              blueLog('\n📤 Step 3: Sending to AI Vision solver...');
               
-              // Use OpenAI to solve the captcha
-              const coordinates = await this.solveCaptchaWithOpenAI(
+              // Use AI to solve the captcha (Gemini preferred, OpenAI fallback)
+              const coordinates = await this.solveCaptchaWithAI(
                 screenshotBase64,
                 promptText,
                 challengeBox.width,
@@ -1008,13 +1016,14 @@ class SunoApi {
               // Convert to format compatible with existing click logic
               captcha = {
                 data: coordinates,
-                id: `openai-${Date.now()}`
+                id: `ai-${Date.now()}`
               };
               
-              blueLog(`\n✅ Step 4: GPT-5.2 solved captcha`);
+              const solver = process.env.GEMINI_API_KEY ? 'Gemini 3 Pro' : 'OpenAI GPT-5.2';
+              blueLog(`\n✅ Step 4: ${solver} solved captcha`);
               blueLog('═══════════════════════════════════════════════════════════');
               blueLog(`📦 Response details:`);
-              blueLog(`   - Solver: OpenAI GPT-5.2 (Responses API)`);
+              blueLog(`   - Solver: ${solver}`);
               blueLog(`   - Click points: ${captcha.data.length}`);
               blueLog(`   - Coordinates: ${JSON.stringify(captcha.data)}`);
               blueLog('═══════════════════════════════════════════════════════════');
@@ -1075,7 +1084,9 @@ class SunoApi {
       }
     }).catch(e => {
       blueLog(`❌ Fatal error: ${e.message}`);
-      browser.browser()?.close();
+      if (!process.env.CDP_BROWSER_ENDPOINT) {
+        browser.browser()?.close();
+      }
       throw e;
     });
     
@@ -1086,7 +1097,10 @@ class SunoApi {
           blueLog('🎉 SUCCESS: hCaptcha token received (coordinates method)');
           blueLog('═══════════════════════════════════════════════════════════');
           route.abort();
-          browser.browser()?.close();
+          // Only close browser if NOT using CDP (persistent browser)
+          if (!process.env.CDP_BROWSER_ENDPOINT) {
+            browser.browser()?.close();
+          }
           controller.abort();
           const request = route.request();
           const token = request.postDataJSON().token;
@@ -1236,6 +1250,188 @@ Respond in comma separated numbers`;
     } catch (error: any) {
       blueLog(`❌ OpenAI error: ${error.message}`);
       throw error;
+    }
+  }
+
+  /**
+   * Solve hCaptcha using Gemini 3 Pro Vision model
+   * Maps a 3x3 grid (1-9) to pixel coordinates
+   */
+  private async solveCaptchaWithGemini(
+    screenshotBase64: string,
+    promptText: string,
+    challengeWidth: number,
+    challengeHeight: number,
+    headerHeight: number = 150
+  ): Promise<{ x: number; y: number }[]> {
+    const geminiApiKey = process.env.GEMINI_API_KEY;
+    if (!geminiApiKey) {
+      throw new Error('GEMINI_API_KEY environment variable is not set');
+    }
+    
+    blueLog('\n🌟 ════════════════════════════════════════════════════════');
+    blueLog('🌟 GEMINI 3 PRO CAPTCHA SOLVING');
+    blueLog('🌟 ════════════════════════════════════════════════════════');
+    
+    const instructionText = `Images are arranged in a 3x3 grid:
+1 2 3 
+4 5 6 
+7 8 9 
+
+${promptText}
+
+NOTE: The images are designed to trick you, so they may be confusing, surreal, or hyper-stylized. If a sample image is provided at the top above the grid, spend 50% of your energy understanding it correctly first. There usually are 2 or 3 right answers (but not always). Almost never more than 4.
+
+IMPORTANT: Respond ONLY with comma separated numbers (e.g., "1, 4, 7"). No other text.`;
+
+    blueLog(`📝 Instruction: "${promptText}"`);
+    blueLog('⏳ Sending to Gemini 3 Pro (thinking: high)...');
+    
+    const startTime = Date.now();
+    
+    try {
+      const response = await axios.post(
+        `https://generativelanguage.googleapis.com/v1beta/models/gemini-3-pro-preview:generateContent`,
+        {
+          contents: [{
+            parts: [
+              { text: instructionText },
+              {
+                inlineData: {
+                  mimeType: "image/png",
+                  data: screenshotBase64
+                }
+              }
+            ]
+          }],
+          generationConfig: {
+            thinkingConfig: {
+              thinkingLevel: "low"
+            },
+            temperature: 1.0
+          }
+        },
+        {
+          headers: {
+            'x-goog-api-key': geminiApiKey,
+            'Content-Type': 'application/json'
+          },
+          timeout: 120000
+        }
+      );
+      
+      const solveTime = Date.now() - startTime;
+      
+      // Extract token usage and calculate cost
+      const usageMetadata = response.data?.usageMetadata;
+      const inputTokens = usageMetadata?.promptTokenCount || 0;
+      const outputTokens = usageMetadata?.candidatesTokenCount || 0;
+      const thinkingTokens = usageMetadata?.thoughtsTokenCount || 0;
+      const totalTokens = usageMetadata?.totalTokenCount || inputTokens + outputTokens;
+      
+      // Gemini 3 Pro pricing (per 1M tokens, <200k context):
+      // Input: $2/1M, Output: $12/1M
+      const inputCost = (inputTokens / 1_000_000) * 2;
+      const outputCost = (outputTokens / 1_000_000) * 12;
+      const thinkingCost = 0; // Included in output for Gemini 3
+      const totalCost = inputCost + outputCost + thinkingCost;
+      
+      // Extract the answer from the response
+      let answer = '';
+      const candidates = response.data?.candidates;
+      if (candidates && candidates.length > 0) {
+        const content = candidates[0]?.content;
+        if (content?.parts) {
+          for (const part of content.parts) {
+            if (part.text) {
+              answer = part.text.trim();
+              break;
+            }
+          }
+        }
+      }
+      
+      blueLog(`\n✅ Gemini 3 Pro responded`);
+      blueLog(`⏱️  Time: ${solveTime}ms`);
+      blueLog(`📊 Tokens: ${inputTokens} in / ${outputTokens} out / ${thinkingTokens} thinking / ${totalTokens} total`);
+      blueLog(`💰 Cost: $${totalCost.toFixed(6)} ($${inputCost.toFixed(6)} in + $${outputCost.toFixed(6)} out + $${thinkingCost.toFixed(6)} thinking)`);
+      blueLog(`📦 Raw response: "${answer}"`);
+      
+      // Parse the comma-separated numbers (handle various formats)
+      const numbers = answer
+        .replace(/[^0-9,\s]/g, '')
+        .split(/[,\s]+/)
+        .map((s: string) => parseInt(s.trim(), 10))
+        .filter((n: number) => n >= 1 && n <= 9);
+      
+      if (numbers.length === 0) {
+        throw new Error(`Invalid Gemini response: "${answer}" - no valid numbers found`);
+      }
+      
+      blueLog(`🔢 Parsed grid positions: [${numbers.join(', ')}]`);
+      
+      // Calculate grid cell dimensions
+      const gridHeight = challengeHeight - headerHeight;
+      const cellWidth = challengeWidth / 3;
+      const cellHeight = gridHeight / 3;
+      
+      blueLog(`📐 Grid calculations:`);
+      blueLog(`   - Challenge size: ${challengeWidth}x${challengeHeight}`);
+      blueLog(`   - Header height: ${headerHeight}px`);
+      blueLog(`   - Grid area: ${challengeWidth}x${gridHeight}`);
+      blueLog(`   - Cell size: ${cellWidth.toFixed(0)}x${cellHeight.toFixed(0)}`);
+      
+      // Convert grid positions (1-9) to pixel coordinates
+      const coordinates: { x: number; y: number }[] = numbers.map((num: number) => {
+        const row = Math.floor((num - 1) / 3);
+        const col = (num - 1) % 3;
+        
+        const x = Math.round(col * cellWidth + cellWidth / 2);
+        const y = Math.round(headerHeight + row * cellHeight + cellHeight / 2);
+        
+        blueLog(`   - Position ${num} → row=${row}, col=${col} → (${x}, ${y})`);
+        return { x, y };
+      });
+      
+      blueLog('🌟 ════════════════════════════════════════════════════════\n');
+      return coordinates;
+      
+    } catch (error: any) {
+      const errorMsg = error.response?.data?.error?.message || error.message;
+      blueLog(`❌ Gemini error: ${errorMsg}`);
+      throw error;
+    }
+  }
+
+  /**
+   * Solve hCaptcha using the configured AI provider (Gemini preferred, OpenAI fallback)
+   */
+  private async solveCaptchaWithAI(
+    screenshotBase64: string,
+    promptText: string,
+    challengeWidth: number,
+    challengeHeight: number,
+    headerHeight: number = 150
+  ): Promise<{ x: number; y: number }[]> {
+    // Prefer Gemini if available, fallback to OpenAI
+    if (process.env.GEMINI_API_KEY) {
+      return this.solveCaptchaWithGemini(
+        screenshotBase64,
+        promptText,
+        challengeWidth,
+        challengeHeight,
+        headerHeight
+      );
+    } else if (process.env.OPENAI_API_KEY) {
+      return this.solveCaptchaWithOpenAI(
+        screenshotBase64,
+        promptText,
+        challengeWidth,
+        challengeHeight,
+        headerHeight
+      );
+    } else {
+      throw new Error('Neither GEMINI_API_KEY nor OPENAI_API_KEY is set. Cannot solve captcha.');
     }
   }
 
@@ -1728,8 +1924,8 @@ Respond with the new tags in JSON, with the problematic terms removed (or with a
               const screenshotBuffer = await challenge.screenshot({ timeout: 5000 });
               const screenshotBase64 = screenshotBuffer.toString('base64');
               
-              // Solve with OpenAI
-              const coordinates = await this.solveCaptchaWithOpenAI(
+              // Solve with AI (Gemini preferred, OpenAI fallback)
+              const coordinates = await this.solveCaptchaWithAI(
                 screenshotBase64,
                 promptText,
                 challengeBox.width,
@@ -2267,7 +2463,10 @@ Respond with the new tags in JSON, with the problematic terms removed (or with a
       console.log('No hCaptcha request detected within 45s in solveCaptchaWithTestPrompt, returning');
       return;
     }
-    await browser.close();
+    // Only close browser if NOT using CDP (persistent browser)
+    if (!process.env.CDP_BROWSER_ENDPOINT) {
+      await browser.close();
+    }
   }
 
   /**
