@@ -20,6 +20,7 @@ const OpenAI = require('openai');
 const axios = require('axios');
 const fs = require('fs');
 const path = require('path');
+const { exit } = require('process');
 
 // Configuration
 const CDP_ENDPOINT = process.env.CDP_BROWSER_ENDPOINT || 'http://127.0.0.1:9222';
@@ -69,32 +70,47 @@ async function connectToBrowser() {
   throw new Error('Could not connect to browser. Is Chrome running with --remote-debugging-port=9222?');
 }
 
-// Ghost cursor click helper
+// Click helper with human-like behavior
+// Note: ghost-cursor has issues with CDP connections, so we use direct Playwright clicks
+// but add random position offsets for more human-like behavior
 async function ghostClick(cursor, element, page) {
   try {
     const box = await element.boundingBox();
     if (box) {
-      // Move to element with human-like curve
-      await cursor.move(element, {
-        paddingPercentage: 10, // Don't always click exact center
-      });
-      await humanDelay(100, 300);
-      await cursor.click();
+      // Calculate a slightly random position within the element (not always center)
+      const paddingX = box.width * 0.2;
+      const paddingY = box.height * 0.2;
+      const offsetX = -paddingX / 2 + Math.random() * paddingX;
+      const offsetY = -paddingY / 2 + Math.random() * paddingY;
+      
+      // Click with random offset from center
+      await element.click({ position: { x: box.width / 2 + offsetX, y: box.height / 2 + offsetY } });
+      return true;
+    } else {
+      // No bounding box, just click
+      await element.click();
       return true;
     }
   } catch (e) {
     // Fallback to regular click
-    console.log(`  (Fallback to regular click: ${e.message})`);
-    await element.click();
+    console.log(`  (Click fallback: ${e.message})`);
+    try {
+      await element.click();
+    } catch (e2) {
+      console.log(`  (Click failed: ${e2.message})`);
+      return false;
+    }
     return true;
   }
-  return false;
 }
 
-// Paste text with human-like focus behavior
+// Paste text with human-like focus behavior - clears existing text first
 async function pasteText(cursor, locator, text, page) {
   await ghostClick(cursor, locator, page);
   await humanDelay(100, 200);
+  // Clear existing text first, then fill
+  await locator.clear();
+  await humanDelay(50, 100);
   await locator.fill(text);
   await humanDelay(200, 400);
 }
@@ -376,21 +392,56 @@ async function generateSongViaUI(page, cursor, songParams) {
 
     // Step 3: Fill style/tags
     blueLog('\n📝 Step 3: Filling style/tags...');
+    
+    // Try multiple strategies to find the style textarea
+    // Strategy 1: By placeholder text patterns
     const styleSelectors = [
       'textarea[placeholder*="war song"]',
       'textarea[placeholder*="synthwave"]',
+      'textarea[placeholder*="style"]',
+      'textarea[placeholder*="genre"]',
       'textarea[placeholder*="bpm"]',
-      'textarea[placeholder*="gabber"]'
+      'textarea[placeholder*="BPM"]'
     ];
 
+    let styleFilled = false;
+    
     for (const selector of styleSelectors) {
       try {
         const styleTextarea = page.locator(selector).first();
-        await styleTextarea.waitFor({ state: 'visible', timeout: 2000 });
+        await styleTextarea.waitFor({ state: 'visible', timeout: 1500 });
         await pasteText(cursor, styleTextarea, songParams.description_music, page);
-        blueLog('  ✓ Style/tags pasted');
+        blueLog(`  ✓ Style/tags pasted (selector: ${selector})`);
+        styleFilled = true;
         break;
       } catch {}
+    }
+    
+    // Strategy 2: If no specific selector worked, try finding the second textarea
+    // (first is usually lyrics, second is usually style in Suno's UI)
+    if (!styleFilled) {
+      try {
+        blueLog('  Trying fallback: second visible textarea...');
+        const allTextareas = await page.locator('textarea').all();
+        let visibleCount = 0;
+        for (const ta of allTextareas) {
+          if (await ta.isVisible()) {
+            visibleCount++;
+            if (visibleCount === 2) {
+              await pasteText(cursor, ta, songParams.description_music, page);
+              blueLog('  ✓ Style/tags pasted (fallback: 2nd textarea)');
+              styleFilled = true;
+              break;
+            }
+          }
+        }
+      } catch (e) {
+        console.log(`  Fallback failed: ${e.message}`);
+      }
+    }
+    
+    if (!styleFilled) {
+      yellowLog('  ⚠️ WARNING: Could not find style textarea!');
     }
     await humanDelay(300, 700);
 
@@ -406,6 +457,8 @@ async function generateSongViaUI(page, cursor, songParams) {
     }
     await humanDelay(300, 700);
 
+    // IMPORTANT: IF EXIT IS NOT COMMENTED OUT, IT MEANS I DONT WANT TO SUBMIT ANYTHING RIGHT NOW SO NEVER UNCOMMENT EXIT()
+    // exit()
     // Step 5: Click Create button
     blueLog('\n🚀 Step 5: Clicking Create...');
     const createButton = page.locator('button[aria-label="Create song"]');
@@ -591,6 +644,14 @@ async function main() {
   const resultsFile = `generation-results-${Date.now()}.json`;
   fs.writeFileSync(resultsFile, JSON.stringify(results, null, 2));
   console.log(`\n📄 Results saved to: ${resultsFile}`);
+
+  // Cleanly disconnect from CDP (don't close the browser, just detach)
+  // This prevents the "session closed" warnings on exit
+  try {
+    await browser.disconnect();
+  } catch (e) {
+    // Ignore disconnect errors - browser stays open
+  }
 }
 
 // Run
