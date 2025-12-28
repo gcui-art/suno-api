@@ -255,11 +255,10 @@ class SunoApi {
       headers: {
         'Affiliate-Id': 'undefined',
         'Device-Id': `"${this.deviceId}"`,
-        'x-suno-client': 'Android prerelease-4nt180t 1.0.42',
-        'X-Requested-With': 'com.suno.android',
-        'sec-ch-ua': '"Chromium";v="130", "Android WebView";v="130", "Not?A_Brand";v="99"',
-        'sec-ch-ua-mobile': '?1',
-        'sec-ch-ua-platform': '"Android"',
+        // Use consistent Mac/Chrome headers (matching the Mac User-Agent)
+        'sec-ch-ua': '"Google Chrome";v="131", "Chromium";v="131", "Not_A Brand";v="24"',
+        'sec-ch-ua-mobile': '?0',
+        'sec-ch-ua-platform': '"macOS"',
         'User-Agent': this.userAgent
       }
     });
@@ -2066,6 +2065,8 @@ Respond with the new tags in JSON, with the problematic terms removed (or with a
       : `${SunoApi.BASE_URL}/api/generate/v2/`;
     logger.info(`Using model: ${actualModel}, endpoint: ${generateEndpoint}`);
     
+    // Build payload WITHOUT captcha token first (human-like approach)
+    // Real browsers don't pre-solve captcha - they try the request first
     let payload: any = {
       make_instrumental: make_instrumental,
       mv: actualModel,
@@ -2075,81 +2076,75 @@ Respond with the new tags in JSON, with the problematic terms removed (or with a
       continue_clip_id: continue_clip_id,
       task: task
     };
-    let response;
-    let captchaToken = await this.getCaptcha();
-    if (captchaToken === 'NO_CAPTCHA') {
-      // Wait a short delay and retry the song submission once
-      await sleep(2, 3);
-      try {
-        response = await this.client.post(
-          generateEndpoint,
-          payload,
-          {
-            timeout: 10000 // 10 seconds timeout
-          }
-        );
-      } catch (retryError) {
-        throw new Error('Song submission failed after retry with no hCaptcha.');
-      }
-    }
-    // Only include token if we have one (not using CDP authenticated browser)
-    if (captchaToken !== null) {
-      payload.token = captchaToken;
-    }
+    
     if (isCustom) {
       payload.tags = tags;
       payload.title = title;
       payload.negative_tags = negative_tags;
       payload.override_fields = ["tags"];
-      // If gpt_description_prompt is provided, use it for auto-generated lyrics
       if (gpt_description_prompt) {
         payload.gpt_description_prompt = gpt_description_prompt;
-        payload.prompt = '';  // Empty prompt for auto-generated lyrics
+        payload.prompt = '';
         logger.info(`Setting gpt_description_prompt in payload: ${gpt_description_prompt}`);
       } else {
-        payload.prompt = prompt;  // Use explicit lyrics
+        payload.prompt = prompt;
       }
     } else {
       payload.gpt_description_prompt = prompt;
     }
-    console.log('payload', payload);
-    logger.info({
-      level: 30,
-      msg: "Final payload before sending",
-      payload
-    });
+    
+    console.log('payload (no captcha token - human-like first attempt)', payload);
+    logger.info({ level: 30, msg: "Attempting request WITHOUT captcha token first", payload });
+    
+    let response;
+    let captchaToken: string | null = null;
+    
+    // STEP 1: Try request WITHOUT captcha token first (like a real browser does)
     try {
-      response = await this.client.post(
-        generateEndpoint,
-        payload,
-        {
-          timeout: 10000 // 10 seconds timeout
-        }
-      );
+      response = await this.client.post(generateEndpoint, payload, { timeout: 10000 });
+      blueLog('✅ Request succeeded without captcha token!');
     } catch (error: any) {
-      // Handle 422 with token validation failed
-      if (error.response && error.response.status === 422 && error.response.data && error.response.data.detail === 'Token validation failed.') {
-        logger.info('422 Token validation failed. Triggering hcaptcha fallback.');
-        console.log('generateSongs: 422 fallback triggered');
-        // Trigger hcaptcha by sending a 'test' song description via the UI
-        this.currentToken = undefined; // Clear any bad token
-        // Force hcaptcha by calling getCaptcha with a UI trigger
-        await this.solveCaptchaWithTestPrompt();
-        // Try again with a new token
-        captchaToken = await this.getCaptcha();
-        if (captchaToken !== null) {
-          payload.token = captchaToken;
-        } else {
-          delete payload.token;
-        }
-        response = await this.client.post(
-          generateEndpoint,
-          payload,
-          {
-            timeout: 10000 // 10 seconds timeout
+      const status = error.response?.status;
+      const detail = error.response?.data?.detail;
+      
+      blueLog(`⚠️ First attempt failed: ${status} - ${detail || error.message}`);
+      
+      // STEP 2: If captcha is required, check if we need to solve it
+      if (status === 422 || (detail && detail.toLowerCase().includes('captcha'))) {
+        blueLog('🔐 Captcha required - checking if we need to solve...');
+        
+        // Check the captcha status first
+        const captchaRequired = await this.captchaRequired();
+        
+        if (captchaRequired) {
+          blueLog('🔐 Captcha IS required - solving now...');
+          captchaToken = await this.getCaptcha();
+          
+          if (captchaToken && captchaToken !== 'NO_CAPTCHA') {
+            payload.token = captchaToken;
+            blueLog('🔑 Got captcha token, retrying request...');
+            
+            try {
+              response = await this.client.post(generateEndpoint, payload, { timeout: 10000 });
+              blueLog('✅ Request succeeded with captcha token!');
+            } catch (retryError: any) {
+              // If it still fails, try the full browser-based solving
+              blueLog(`❌ Retry with token failed: ${retryError.response?.status}`);
+              throw retryError;
+            }
+          } else {
+            // No captcha token available, try without
+            blueLog('⚠️ No captcha token obtained, retrying without...');
+            response = await this.client.post(generateEndpoint, payload, { timeout: 10000 });
           }
-        );
+        } else {
+          // Captcha not required according to API, retry without token
+          blueLog('ℹ️ Captcha not required according to API, retrying...');
+          await sleep(1, 2); // Small delay before retry
+          response = await this.client.post(generateEndpoint, payload, { timeout: 10000 });
+        }
       } else {
+        // Not a captcha error, rethrow
         throw error;
       }
     }
