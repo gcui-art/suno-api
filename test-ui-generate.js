@@ -28,7 +28,7 @@ const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
 
 // Load song data
-const SONGS_FILE = './fift-shades-of-grey-music.json';
+const SONGS_FILE = '/Users/ericjung/Documents/Code/suno-api/music-powerless.json';
 
 // Blue console output helper
 const blueLog = (msg) => console.log('\x1b[34m%s\x1b[0m', msg);
@@ -43,9 +43,70 @@ async function humanDelay(minMs = 500, maxMs = 1500) {
 
 // Longer delay between songs (5-15 seconds like real humans)
 async function betweenSongsDelay() {
-  const delay = Math.random() * 10000 + 5000; // 5-15 seconds
+  const delay = Math.random() * 3000 + 2000; // 2-5 seconds
   yellowLog(`⏳ Waiting ${(delay / 1000).toFixed(1)}s before next song (human-like delay)...`);
   await new Promise(r => setTimeout(r, delay));
+}
+
+// Track last mouse position for smooth movements
+let lastMouseX = 500;
+let lastMouseY = 400;
+
+// Generate bezier control points for curved mouse path
+function generateBezierPath(startX, startY, endX, endY, steps = 20) {
+  const points = [];
+  
+  // Random control points for natural curve (not direct line)
+  const cp1x = startX + (endX - startX) * 0.25 + (Math.random() - 0.5) * 100;
+  const cp1y = startY + (endY - startY) * 0.25 + (Math.random() - 0.5) * 100;
+  const cp2x = startX + (endX - startX) * 0.75 + (Math.random() - 0.5) * 100;
+  const cp2y = startY + (endY - startY) * 0.75 + (Math.random() - 0.5) * 100;
+  
+  for (let t = 0; t <= 1; t += 1 / steps) {
+    const t2 = t * t;
+    const t3 = t2 * t;
+    const mt = 1 - t;
+    const mt2 = mt * mt;
+    const mt3 = mt2 * mt;
+    
+    const x = mt3 * startX + 3 * mt2 * t * cp1x + 3 * mt * t2 * cp2x + t3 * endX;
+    const y = mt3 * startY + 3 * mt2 * t * cp1y + 3 * mt * t2 * cp2y + t3 * endY;
+    
+    // Add tiny random jitter for human imperfection
+    points.push({
+      x: x + (Math.random() - 0.5) * 2,
+      y: y + (Math.random() - 0.5) * 2
+    });
+  }
+  
+  return points;
+}
+
+// Move mouse along a curved path (human-like)
+async function humanMouseMove(page, targetX, targetY) {
+  const path = generateBezierPath(lastMouseX, lastMouseY, targetX, targetY);
+  
+  for (const point of path) {
+    await page.mouse.move(point.x, point.y);
+    // Variable speed - slower at ends, faster in middle
+    const delay = 5 + Math.random() * 15;
+    await new Promise(r => setTimeout(r, delay));
+  }
+  
+  lastMouseX = targetX;
+  lastMouseY = targetY;
+}
+
+// Randomly fidget the mouse (small movements like humans do)
+async function randomFidget(page) {
+  if (Math.random() < 0.3) { // 30% chance to fidget
+    const fidgetX = lastMouseX + (Math.random() - 0.5) * 50;
+    const fidgetY = lastMouseY + (Math.random() - 0.5) * 50;
+    await page.mouse.move(fidgetX, fidgetY);
+    lastMouseX = fidgetX;
+    lastMouseY = fidgetY;
+    await humanDelay(100, 300);
+  }
 }
 
 async function connectToBrowser() {
@@ -71,20 +132,29 @@ async function connectToBrowser() {
 }
 
 // Click helper with human-like behavior
-// Note: ghost-cursor has issues with CDP connections, so we use direct Playwright clicks
-// but add random position offsets for more human-like behavior
+// Uses curved mouse path and random click position
 async function ghostClick(cursor, element, page) {
   try {
     const box = await element.boundingBox();
     if (box) {
-      // Calculate a slightly random position within the element (not always center)
-      const paddingX = box.width * 0.2;
-      const paddingY = box.height * 0.2;
-      const offsetX = -paddingX / 2 + Math.random() * paddingX;
-      const offsetY = -paddingY / 2 + Math.random() * paddingY;
+      // Calculate a random position within the element (not always center)
+      const paddingX = box.width * 0.3;
+      const paddingY = box.height * 0.3;
+      const clickX = box.x + box.width / 2 + (Math.random() - 0.5) * paddingX;
+      const clickY = box.y + box.height / 2 + (Math.random() - 0.5) * paddingY;
       
-      // Click with random offset from center
-      await element.click({ position: { x: box.width / 2 + offsetX, y: box.height / 2 + offsetY } });
+      // Move mouse along curved path to target
+      await humanMouseMove(page, clickX, clickY);
+      
+      // Small pause before clicking (like real human)
+      await humanDelay(50, 150);
+      
+      // Click at current position
+      await page.mouse.click(clickX, clickY);
+      
+      // Maybe fidget after click
+      await randomFidget(page);
+      
       return true;
     } else {
       // No bounding box, just click
@@ -106,13 +176,20 @@ async function ghostClick(cursor, element, page) {
 
 // Paste text with human-like focus behavior - clears existing text first
 async function pasteText(cursor, locator, text, page) {
+  // Click into the field with human-like mouse movement
   await ghostClick(cursor, locator, page);
-  await humanDelay(100, 200);
-  // Clear existing text first, then fill
+  await humanDelay(150, 350);
+  
+  // Clear existing text (Cmd+A, then type over)
   await locator.clear();
-  await humanDelay(50, 100);
+  await humanDelay(100, 200);
+  
+  // Paste the text
   await locator.fill(text);
-  await humanDelay(200, 400);
+  
+  // Small pause after typing, maybe fidget
+  await humanDelay(200, 500);
+  await randomFidget(page);
 }
 
 // Solve captcha with AI (Gemini preferred, OpenAI fallback)
@@ -124,18 +201,20 @@ async function solveCaptchaWithAI(screenshotBase64, promptText, challengeWidth, 
 
 ${promptText}
 
-NOTE: The images are designed to trick you, so they may be confusing, surreal, or hyper-stylized. If a sample image is provided at the top above the grid, spend 50% of your energy understanding it correctly first. There usually are 2 or 3 right answers (but not always). Almost never more than 4.
+NOTE: The images are designed to trick you, so they may be confusing, surreal, or hyper-stylized. If a sample image is provided at the top above the grid, spend 50% of your energy understanding it correctly first. There usually are 2, 3, or 4 right answers (but not always). Almost never more than 4.
 
-IMPORTANT: Respond ONLY with comma separated numbers (e.g., "1, 4, 7"). No other text.`;
+IMPORTANT: Respond ONLY with comma-separated numbers (e.g., "1, 4, 7"). No other text.`;
 
   let answer = '';
+  let thoughtSummary = '';
   const startTime = Date.now();
 
   if (GEMINI_API_KEY) {
-    blueLog('🌟 Solving with Gemini 3 Pro...');
+    blueLog('🌟 Solving with Gemini 3 Pro (streaming with thoughts)...');
     
+    // Use streaming endpoint to get thoughts in real-time
     const response = await axios.post(
-      'https://generativelanguage.googleapis.com/v1beta/models/gemini-3-pro-preview:generateContent',
+      'https://generativelanguage.googleapis.com/v1beta/models/gemini-3-pro-preview:streamGenerateContent?alt=sse',
       {
         contents: [{
           parts: [
@@ -144,7 +223,10 @@ IMPORTANT: Respond ONLY with comma separated numbers (e.g., "1, 4, 7"). No other
           ]
         }],
         generationConfig: {
-          thinkingConfig: { thinkingLevel: "high" },
+          thinkingConfig: { 
+            thinkingLevel: "low",
+            includeThoughts: true
+          },
           temperature: 1.0
         }
       },
@@ -153,22 +235,48 @@ IMPORTANT: Respond ONLY with comma separated numbers (e.g., "1, 4, 7"). No other
           'x-goog-api-key': GEMINI_API_KEY,
           'Content-Type': 'application/json'
         },
-        timeout: 120000
+        timeout: 120000,
+        responseType: 'text' // Get raw SSE text
       }
     );
     
-    const candidates = response.data?.candidates;
-    if (candidates && candidates.length > 0) {
-      const content = candidates[0]?.content;
-      if (content?.parts) {
-        for (const part of content.parts) {
-          if (part.text) {
-            answer = part.text.trim();
-            break;
+    // Parse SSE response
+    const lines = response.data.split('\n');
+    for (const line of lines) {
+      if (line.startsWith('data: ')) {
+        const jsonStr = line.slice(6).trim();
+        if (jsonStr === '[DONE]') break;
+        try {
+          const chunk = JSON.parse(jsonStr);
+          const candidates = chunk?.candidates;
+          if (candidates && candidates.length > 0) {
+            const content = candidates[0]?.content;
+            if (content?.parts) {
+              for (const part of content.parts) {
+                if (part.text) {
+                  if (part.thought) {
+                    // Stream thoughts to console
+                    process.stdout.write(`\x1b[90m${part.text}\x1b[0m`); // Gray for thoughts
+                    thoughtSummary += part.text;
+                  } else {
+                    answer += part.text;
+                  }
+                }
+              }
+            }
           }
+        } catch (e) {
+          // Ignore parse errors on incomplete chunks
         }
       }
     }
+    
+    if (thoughtSummary) {
+      console.log('\n'); // New line after thoughts
+      blueLog(`💭 Thinking summary: ${thoughtSummary.substring(0, 200)}${thoughtSummary.length > 200 ? '...' : ''}`);
+    }
+    
+    answer = answer.trim();
   } else if (OPENAI_API_KEY) {
     blueLog('🤖 Solving with OpenAI GPT-5.2...');
     const openai = new OpenAI({ apiKey: OPENAI_API_KEY });
@@ -385,7 +493,11 @@ async function generateSongViaUI(page, cursor, songParams) {
         await pasteText(cursor, lyricsTextarea, songParams.description_lyrics, page);
         blueLog('  ✓ Lyrics pasted');
       } else {
-        blueLog('  (Instrumental - no lyrics)');
+        // Instrumental or empty lyrics - CLEAR the field to remove any leftover text
+        await ghostClick(cursor, lyricsTextarea, page);
+        await humanDelay(100, 200);
+        await lyricsTextarea.clear();
+        blueLog('  ✓ Lyrics cleared (instrumental)');
       }
     }
     await humanDelay(300, 700);
@@ -458,7 +570,10 @@ async function generateSongViaUI(page, cursor, songParams) {
     await humanDelay(300, 700);
 
     // IMPORTANT: IF EXIT IS NOT COMMENTED OUT, IT MEANS I DONT WANT TO SUBMIT ANYTHING RIGHT NOW SO NEVER UNCOMMENT EXIT()
-    // exit()
+    // Uncomment the next 2 lines to observe mouse movements without submitting
+    yellowLog('\n🔍 OBSERVATION MODE: Exiting before submission. Watch the mouse movements above!');
+    // exit();
+    
     // Step 5: Click Create button
     blueLog('\n🚀 Step 5: Clicking Create...');
     const createButton = page.locator('button[aria-label="Create song"]');
@@ -476,30 +591,92 @@ async function generateSongViaUI(page, cursor, songParams) {
     await ghostClick(cursor, createButton, page);
     greenLog('  ✓ Create button clicked!');
 
-    // Step 6: Wait for response naturally (no aggressive polling)
+    // Step 6: Wait for response, handle captcha if triggered
     blueLog('\n⏳ Step 6: Waiting for response...');
-    blueLog('  (Letting invisible hCaptcha work if needed...)');
 
-    const timeout = 90000; // 90 seconds
+    const timeout = 90000;
     const startTime = Date.now();
-    let captchaChecked = false;
+    let captchaTriggered = false;
+    let captchaSolved = false;
 
-    while (!responseReceived && (Date.now() - startTime) < timeout) {
-      // Only check for VISIBLE captcha after 5 seconds (give invisible time to work)
-      if (!captchaChecked && (Date.now() - startTime) > 5000) {
-        const solved = await handleVisibleCaptcha(page, cursor);
-        if (solved) {
-          blueLog('Visible captcha was solved, waiting for response...');
+    // Listen for hCaptcha console message
+    const consoleHandler = (msg) => {
+      const text = msg.text();
+      if (text.includes('captcha required') || text.includes('awaiting verification')) {
+        captchaTriggered = true;
+        blueLog('  🔒 hCaptcha triggered, waiting for auto-solve...');
+      }
+    };
+    page.on('console', consoleHandler);
+
+    try {
+      while (!responseReceived && (Date.now() - startTime) < timeout) {
+        // Check if hCaptcha iframe appeared (backup detection)
+        if (!captchaTriggered) {
+          try {
+            const captchaIframe = await page.$('iframe[src*="hcaptcha.com"]');
+            if (captchaIframe) {
+              captchaTriggered = true;
+              blueLog('  🔒 hCaptcha iframe detected, waiting for auto-solve...');
+            }
+          } catch {}
         }
-        captchaChecked = true;
-      }
 
-      // Check again after 15 seconds if still waiting
-      if (captchaChecked && (Date.now() - startTime) > 15000 && (Date.now() - startTime) < 20000) {
-        await handleVisibleCaptcha(page, cursor);
-      }
+        // If captcha was triggered, wait 4s then check if it actually auto-solved
+        if (captchaTriggered && !captchaSolved) {
+          blueLog('  ⏳ Giving invisible hCaptcha 4 seconds to auto-solve...');
+          await new Promise(resolve => setTimeout(resolve, 4000));
+          
+          // The REAL test: did we get an API response? If yes, captcha was auto-solved
+          if (responseReceived) {
+            blueLog('  ✅ Invisible hCaptcha auto-solved! (got API response)');
+            captchaSolved = true;
+          } else {
+            // No response yet = captcha NOT auto-solved, need to solve it
+            blueLog('  ❌ Captcha NOT auto-solved (no API response yet)');
+            
+            // Look for visible challenge iframe
+            try {
+              // Try multiple selectors for the challenge popup
+              const challengeSelectors = [
+                'iframe[src*="hcaptcha.com/captcha"]',
+                'iframe[title*="hCaptcha challenge"]',
+                'iframe[src*="newassets.hcaptcha.com"]'
+              ];
+              
+              let visibleChallenge = null;
+              for (const selector of challengeSelectors) {
+                const iframe = await page.$(selector);
+                if (iframe) {
+                  const isVis = await iframe.isVisible().catch(() => false);
+                  if (isVis) {
+                    visibleChallenge = iframe;
+                    blueLog(`  Found visible challenge: ${selector}`);
+                    break;
+                  }
+                }
+              }
+              
+              if (visibleChallenge) {
+                blueLog('  🤖 Sending captcha to Gemini...');
+                const solved = await handleVisibleCaptcha(page, cursor);
+                if (solved) {
+                  blueLog('  ✅ Captcha solved by Gemini!');
+                }
+              } else {
+                yellowLog('  ⚠️ Captcha triggered but no visible challenge found - waiting...');
+              }
+            } catch (e) {
+              console.log(`  (Captcha check error: ${e.message})`);
+            }
+            captchaSolved = true;
+          }
+        }
 
-      await page.waitForTimeout(1000);
+        await new Promise(resolve => setTimeout(resolve, 1000));
+      }
+    } finally {
+      page.off('console', consoleHandler);
     }
 
     if (responseError) {
