@@ -622,15 +622,53 @@ async function generateSongViaUI(page, cursor, songParams) {
     // Step 1: Switch to Custom mode if needed
     blueLog('📝 Step 1: Switching to Custom mode...');
     try {
+      // Check if Custom button exists and is NOT active
       const customButton = page.locator('button:has-text("Custom")').first();
       const isVisible = await customButton.isVisible({ timeout: 2000 });
       if (isVisible) {
-        await ghostClick(cursor, customButton, page);
-        blueLog('  ✓ Switched to Custom mode');
-        await humanDelay(500, 1000);
+        // Check if it has the "active" class
+        const hasActiveClass = await customButton.evaluate(el => el.classList.contains('active'));
+        if (!hasActiveClass) {
+          await ghostClick(cursor, customButton, page);
+          blueLog('  ✓ Switched to Custom mode');
+          await humanDelay(500, 1000);
+        } else {
+          blueLog('  ✓ Already in Custom mode');
+        }
       }
-    } catch {
-      blueLog('  (Already in Custom mode)');
+    } catch (e) {
+      blueLog(`  (Custom mode check: ${e.message})`);
+    }
+
+    // Step 1b: Check model version and switch to v4.5+ if needed
+    blueLog('\n📝 Step 1b: Checking model version...');
+    try {
+      // Find the version selector button (shows current version like "v5" or "v4.5+")
+      const versionButton = page.locator('button:has-text("v5"), button:has-text("v4.5")').first();
+      const versionVisible = await versionButton.isVisible({ timeout: 3000 });
+      
+      if (versionVisible) {
+        const versionText = await versionButton.textContent();
+        blueLog(`  Current version: ${versionText.trim()}`);
+        
+        // If it's v5, we need to change to v4.5+
+        if (versionText.includes('v5')) {
+          blueLog('  Switching to v4.5+...');
+          await ghostClick(cursor, versionButton, page);
+          await humanDelay(300, 500);
+          
+          // Wait for dropdown menu to appear and click v4.5+
+          const v45Option = page.locator('button:has-text("v4.5+")').first();
+          await v45Option.waitFor({ state: 'visible', timeout: 3000 });
+          await ghostClick(cursor, v45Option, page);
+          blueLog('  ✓ Switched to v4.5+');
+          await humanDelay(300, 500);
+        } else {
+          blueLog('  ✓ Already on v4.5+');
+        }
+      }
+    } catch (e) {
+      blueLog(`  (Version check skipped: ${e.message})`);
     }
 
     // Step 2: Fill lyrics (if not instrumental)
