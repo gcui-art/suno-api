@@ -22,10 +22,49 @@ const fs = require('fs');
 const path = require('path');
 const { exit } = require('process');
 
+// Manually load .env.local since dotenv v17 has issues
+function loadEnvFile(filePath) {
+  try {
+    const content = fs.readFileSync(filePath, 'utf8');
+    const lines = content.split('\n');
+    for (const line of lines) {
+      const trimmed = line.trim();
+      if (trimmed && !trimmed.startsWith('#')) {
+        const match = trimmed.match(/^([^=]+)=(.*)$/);
+        if (match) {
+          const key = match[1].trim();
+          let value = match[2].trim();
+          // Remove quotes if present
+          if ((value.startsWith('"') && value.endsWith('"')) || 
+              (value.startsWith("'") && value.endsWith("'"))) {
+            value = value.slice(1, -1);
+          }
+          if (!process.env[key]) {
+            process.env[key] = value;
+          }
+        }
+      }
+    }
+  } catch (e) {
+    // File doesn't exist, ignore
+  }
+}
+
+loadEnvFile(path.join(__dirname, '.env.local'));
+
 // Configuration
 const CDP_ENDPOINT = process.env.CDP_BROWSER_ENDPOINT || 'http://127.0.0.1:9222';
 const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
+
+// Debug: show if keys loaded
+if (GEMINI_API_KEY) {
+  console.log('✓ GEMINI_API_KEY loaded from .env.local');
+} else if (OPENAI_API_KEY) {
+  console.log('✓ OPENAI_API_KEY loaded from .env.local');
+} else {
+  console.log('⚠️  No API keys found! Set GEMINI_API_KEY or OPENAI_API_KEY');
+}
 
 // Load song data
 const SONGS_FILE = '/Users/ericjung/Documents/Code/suno-api/music-powerless.json';
@@ -193,8 +232,12 @@ async function pasteText(cursor, locator, text, page) {
 }
 
 // Solve captcha with AI (Gemini preferred, OpenAI fallback)
-async function solveCaptchaWithAI(screenshotBase64, promptText, challengeWidth, challengeHeight, headerHeight = 150) {
-  const instructionText = `Images are arranged in a 3x3 grid:
+// If promptImageBase64 is provided, sends two images: prompt/sample image first, then grid
+async function solveCaptchaWithAI(screenshotBase64, promptText, challengeWidth, challengeHeight, headerHeight = 150, promptImageBase64 = null) {
+  const instructionText = `You're given 2 images. 
+  
+  1. Prompt (what you need to solve) + most often a sample image. 
+  2. A grid image with 3x3 choices. :
 1 2 3 
 4 5 6 
 7 8 9 
@@ -212,15 +255,21 @@ IMPORTANT: Respond ONLY with comma-separated numbers (e.g., "1, 4, 7"). No other
   if (GEMINI_API_KEY) {
     blueLog('🌟 Solving with Gemini 3 Pro (streaming with thoughts)...');
     
+    // Build parts array - optionally include prompt image first
+    const parts = [{ text: instructionText }];
+    if (promptImageBase64) {
+      parts.push({ inlineData: { mimeType: "image/png", data: promptImageBase64 } });
+      blueLog('  📷 Sending prompt/sample image');
+    }
+    parts.push({ inlineData: { mimeType: "image/png", data: screenshotBase64 } });
+    blueLog('  📷 Sending grid image');
+    
     // Use streaming endpoint to get thoughts in real-time
     const response = await axios.post(
       'https://generativelanguage.googleapis.com/v1beta/models/gemini-3-pro-preview:streamGenerateContent?alt=sse',
       {
         contents: [{
-          parts: [
-            { text: instructionText },
-            { inlineData: { mimeType: "image/png", data: screenshotBase64 } }
-          ]
+          parts: parts
         }],
         generationConfig: {
           thinkingConfig: { 
@@ -342,74 +391,188 @@ IMPORTANT: Respond ONLY with comma-separated numbers (e.g., "1, 4, 7"). No other
 
 // Handle visible hCaptcha ONLY if it appears (don't poll aggressively)
 async function handleVisibleCaptcha(page, cursor) {
-  // Check if visible hCaptcha challenge appeared
-  const challengeIframe = await page.$('iframe[src*="hcaptcha.com/captcha"]');
-  if (!challengeIframe) {
-    return false; // No visible captcha
-  }
+  const { execSync } = require('child_process');
+  
+  console.log('  [handleVisibleCaptcha] Starting...');
+  
+  try {
+    // Check if visible hCaptcha challenge appeared - try multiple selectors
+    const selectors = [
+      'iframe[title*="hCaptcha challenge"]',
+      'iframe[src*="hcaptcha-assets-prod.suno.com"]',
+      'iframe[src*="hcaptcha.com/captcha"]',
+      'iframe[src*="newassets.hcaptcha.com"]'
+    ];
+    
+    let challengeIframe = null;
+    for (const selector of selectors) {
+      challengeIframe = await page.$(selector);
+      if (challengeIframe) {
+        console.log(`  [handleVisibleCaptcha] Found captcha iframe with: ${selector}`);
+        break;
+      }
+    }
+    
+    if (!challengeIframe) {
+      console.log('  [handleVisibleCaptcha] No captcha iframe found with any selector');
+      return false;
+    }
 
-  blueLog('\n⚠️ Visible hCaptcha challenge detected! Solving...');
+    const box = await challengeIframe.boundingBox();
+    if (!box) {
+      console.log('  [handleVisibleCaptcha] Could not get bounding box');
+      return false;
+    }
+    console.log(`  [handleVisibleCaptcha] Bounding box: ${JSON.stringify(box)}`);
 
-  const box = await challengeIframe.boundingBox();
-  if (!box) {
-    console.log('Could not get challenge dimensions');
+    // Take screenshot of challenge (same as test-captcha)
+    const timestamp = Date.now();
+    const screenshotPath = `captcha-screenshots/ui-captcha-${timestamp}.png`;
+    console.log(`  [handleVisibleCaptcha] Taking screenshot to ${screenshotPath}...`);
+    
+    await page.screenshot({
+      path: screenshotPath,
+      clip: { x: box.x, y: box.y, width: box.width, height: box.height }
+    });
+    console.log(`📸 Screenshot saved: ${screenshotPath}`);
+
+    // EXACT SAME PROCEDURE AS test-captcha:
+    console.log('🔧 Using ffmpeg to split image...');
+    
+    // Get image dimensions using ffprobe
+    const probeCmd = `ffprobe -v error -select_streams v:0 -show_entries stream=width,height -of csv=p=0 "${screenshotPath}"`;
+    console.log(`  [handleVisibleCaptcha] Running: ${probeCmd}`);
+    const dims = execSync(probeCmd, { encoding: 'utf8' }).trim().split(',');
+    const imgWidth = parseInt(dims[0]);
+    const imgHeight = parseInt(dims[1]);
+    console.log(`📐 Original dimensions: ${imgWidth}x${imgHeight}`);
+    
+    const promptHeight = 240;
+    const gridHeight = imgHeight - promptHeight;
+    
+    // Use the SAME file names as test-captcha
+    const promptPath = 'captcha-screenshots/prompt-and-sample.png';
+    const gridPath = 'captcha-screenshots/grid.png';
+    
+    // Crop top part (prompt and sample)
+    const cropPromptCmd = `ffmpeg -y -i "${screenshotPath}" -vf "crop=${imgWidth}:${promptHeight}:0:0" "${promptPath}"`;
+    console.log(`  [handleVisibleCaptcha] Running: ${cropPromptCmd}`);
+    execSync(cropPromptCmd + ' 2>/dev/null');
+    console.log(`📸 Saved prompt/sample: ${promptPath} (${imgWidth}x${promptHeight})`);
+    
+    // Crop bottom part (grid)
+    const cropGridCmd = `ffmpeg -y -i "${screenshotPath}" -vf "crop=${imgWidth}:${gridHeight}:0:${promptHeight}" "${gridPath}"`;
+    console.log(`  [handleVisibleCaptcha] Running: ${cropGridCmd}`);
+    execSync(cropGridCmd + ' 2>/dev/null');
+    console.log(`📸 Saved grid: ${gridPath} (${imgWidth}x${gridHeight})`);
+    
+    // Verify files exist
+    if (!fs.existsSync(gridPath)) {
+      throw new Error(`grid.png was not created at ${gridPath}`);
+    }
+    if (!fs.existsSync(promptPath)) {
+      throw new Error(`prompt-and-sample.png was not created at ${promptPath}`);
+    }
+    console.log('  [handleVisibleCaptcha] Both files created successfully');
+    
+    // Read cropped images as base64
+    const promptBase64 = fs.readFileSync(promptPath).toString('base64');
+    const gridBase64 = fs.readFileSync(gridPath).toString('base64');
+    console.log(`  [handleVisibleCaptcha] Loaded base64: prompt=${promptBase64.length} chars, grid=${gridBase64.length} chars`);
+
+    // Try to get prompt text from the page
+    let promptText = 'Click on all images that match';
+    try {
+      const frame = page.frameLocator('iframe[src*="hcaptcha-assets-prod.suno.com"], iframe[src*="hcaptcha.com/captcha"]');
+      const promptElement = frame.locator('.prompt-text').first();
+      promptText = await promptElement.textContent({ timeout: 2000 }) || promptText;
+    } catch (e) {
+      console.log(`  [handleVisibleCaptcha] Could not get prompt text: ${e.message}`);
+    }
+
+    console.log(`📋 Challenge: "${promptText}"`);
+    console.log('\n🤖 Sending to Gemini...\n');
+
+    // Screenshot is at retina resolution (e.g., 800x1200) but clicks use CSS pixels (e.g., 320x490)
+    // Calculate scale factor and use CSS dimensions for coordinate calculation
+    const scale = imgHeight / box.height;
+    const cssPromptHeight = promptHeight / scale;
+    
+    console.log(`📐 Scale factor: ${scale.toFixed(2)}x (screenshot ${imgWidth}x${imgHeight} -> CSS ${box.width}x${box.height})`);
+    console.log(`📐 Header: ${promptHeight}px screenshot -> ${cssPromptHeight.toFixed(0)}px CSS`);
+
+    // Solve with AI - use CSS pixel dimensions for coordinate calculation
+    const coordinates = await solveCaptchaWithAI(
+      gridBase64,
+      promptText,
+      box.width,        // CSS width
+      box.height,       // CSS height
+      cssPromptHeight,  // Header in CSS pixels
+      promptBase64
+    );
+
+    console.log(`🖱️ Clicking ${coordinates.length} positions...`);
+
+    // Click each position - coordinates are now in CSS pixels
+    for (const coord of coordinates) {
+      const clickX = box.x + coord.x;
+      const clickY = box.y + coord.y;
+      console.log(`  CSS coord (${coord.x.toFixed(0)}, ${coord.y.toFixed(0)}) -> screen (${clickX.toFixed(0)}, ${clickY.toFixed(0)})`);
+      await page.mouse.move(clickX, clickY, { steps: 10 });
+      await humanDelay(100, 200);
+      await page.mouse.click(clickX, clickY);
+      await humanDelay(300, 600);
+    }
+
+    // Click verify button - try multiple approaches
+    await humanDelay(500, 1000);
+    let verifyClicked = false;
+    
+    // Try different frame selectors
+    const frameSelectors = [
+      'iframe[src*="hcaptcha-assets-prod.suno.com"]',
+      'iframe[title*="hCaptcha challenge"]',
+      'iframe[src*="hcaptcha.com/captcha"]'
+    ];
+    
+    // Try different button selectors
+    const buttonSelectors = [
+      '.button-submit',
+      '[role="button"][title="Verify Answers"]',
+      '[aria-label="Verify Answers"]',
+      'div.button-submit.button',
+      '.button-submit.button'
+    ];
+    
+    for (const frameSel of frameSelectors) {
+      if (verifyClicked) break;
+      try {
+        const frame = page.frameLocator(frameSel);
+        for (const btnSel of buttonSelectors) {
+          try {
+            const verifyBtn = frame.locator(btnSel).first();
+            await verifyBtn.click({ timeout: 2000 });
+            console.log(`✅ Clicked verify button (frame: ${frameSel}, btn: ${btnSel})`);
+            verifyClicked = true;
+            break;
+          } catch {}
+        }
+      } catch {}
+    }
+    
+    if (!verifyClicked) {
+      console.log('⚠️ Could not find verify button with any selector');
+    }
+
+    // Wait for captcha to process
+    await humanDelay(2000, 3000);
+    return true;
+    
+  } catch (error) {
+    console.error(`  [handleVisibleCaptcha] ERROR: ${error.message}`);
+    console.error(error.stack);
     return false;
   }
-
-  // Take screenshot of challenge
-  const timestamp = Date.now();
-  const screenshotPath = `captcha-screenshots/ui-captcha-${timestamp}.png`;
-  await page.screenshot({
-    path: screenshotPath,
-    clip: { x: box.x, y: box.y, width: box.width, height: box.height }
-  });
-  blueLog(`📸 Screenshot saved: ${screenshotPath}`);
-
-  const screenshotBase64 = fs.readFileSync(screenshotPath).toString('base64');
-
-  // Try to get prompt text
-  let promptText = 'Click on all images that match';
-  try {
-    const frame = page.frameLocator('iframe[src*="hcaptcha.com/captcha"]');
-    const promptElement = frame.locator('.prompt-text').first();
-    promptText = await promptElement.textContent({ timeout: 2000 }) || promptText;
-  } catch {}
-
-  blueLog(`📋 Challenge: "${promptText}"`);
-
-  // Solve with AI
-  const coordinates = await solveCaptchaWithAI(
-    screenshotBase64,
-    promptText,
-    box.width,
-    box.height,
-    150
-  );
-
-  blueLog(`🖱️ Clicking ${coordinates.length} positions...`);
-
-  // Click each position with human-like delays
-  for (const coord of coordinates) {
-    await page.mouse.move(box.x + coord.x, box.y + coord.y, { steps: 10 });
-    await humanDelay(100, 200);
-    await page.mouse.click(box.x + coord.x, box.y + coord.y);
-    await humanDelay(300, 600);
-  }
-
-  // Click verify button
-  await humanDelay(500, 1000);
-  try {
-    const frame = page.frameLocator('iframe[src*="hcaptcha.com/captcha"]');
-    const verifyBtn = frame.locator('.button-submit').first();
-    await verifyBtn.click({ timeout: 3000 });
-    blueLog('✅ Clicked verify button');
-  } catch {
-    blueLog('⚠️ Could not find verify button');
-  }
-
-  // Wait for captcha to process
-  await humanDelay(2000, 3000);
-  return true;
 }
 
 async function generateSongViaUI(page, cursor, songParams) {
@@ -614,7 +777,7 @@ async function generateSongViaUI(page, cursor, songParams) {
         // Check if hCaptcha iframe appeared (backup detection)
         if (!captchaTriggered) {
           try {
-            const captchaIframe = await page.$('iframe[src*="hcaptcha.com"]');
+            const captchaIframe = await page.$('iframe[src*="hcaptcha-assets-prod.suno.com"], iframe[src*="hcaptcha.com"]');
             if (captchaIframe) {
               captchaTriggered = true;
               blueLog('  🔒 hCaptcha iframe detected, waiting for auto-solve...');
@@ -639,8 +802,9 @@ async function generateSongViaUI(page, cursor, songParams) {
             try {
               // Try multiple selectors for the challenge popup
               const challengeSelectors = [
-                'iframe[src*="hcaptcha.com/captcha"]',
+                'iframe[src*="hcaptcha-assets-prod.suno.com"]',
                 'iframe[title*="hCaptcha challenge"]',
+                'iframe[src*="hcaptcha.com/captcha"]',
                 'iframe[src*="newassets.hcaptcha.com"]'
               ];
               
@@ -699,6 +863,71 @@ async function main() {
   // Parse command line args
   const args = process.argv.slice(2);
   const sectionArg = args[0] || '1';
+
+  // TEST MODE: Run captcha solver on a specific image
+  if (sectionArg === 'test-captcha') {
+    const { execSync } = require('child_process');
+    const testImage = args[1] || '/Users/ericjung/Documents/Code/suno-api/captcha-screenshots/captcha-screenshot-1766846575685.png';
+    const testPrompt = args[2] || 'pick all animals that live in a similar habitat as the sample animal';
+    
+    console.log('╔═══════════════════════════════════════════════════════════╗');
+    console.log('║         GEMINI CAPTCHA SOLVER TEST                        ║');
+    console.log('╚═══════════════════════════════════════════════════════════╝\n');
+    
+    console.log(`📸 Image: ${testImage}`);
+    console.log(`📋 Prompt: "${testPrompt}"`);
+    console.log('');
+    
+    if (!fs.existsSync(testImage)) {
+      throw new Error(`Image not found: ${testImage}`);
+    }
+    
+    // Use ffmpeg to get image dimensions and crop
+    // Screenshot is 760x1000: top 760x240 = prompt/sample, bottom 760x760 = grid
+    console.log('🔧 Using ffmpeg to split image...');
+    
+    // Get image dimensions using ffprobe
+    const probeCmd = `ffprobe -v error -select_streams v:0 -show_entries stream=width,height -of csv=p=0 "${testImage}"`;
+    const dims = execSync(probeCmd, { encoding: 'utf8' }).trim().split(',');
+    const imgWidth = parseInt(dims[0]);
+    const imgHeight = parseInt(dims[1]);
+    console.log(`📐 Original dimensions: ${imgWidth}x${imgHeight}`);
+    
+    const promptHeight = 240;
+    const gridHeight = imgHeight - promptHeight;
+    
+    const promptPath = 'captcha-screenshots/prompt-and-sample.png';
+    const gridPath = 'captcha-screenshots/grid.png';
+    
+    // Crop top part (prompt and sample): crop=width:height:x:y
+    execSync(`ffmpeg -y -i "${testImage}" -vf "crop=${imgWidth}:${promptHeight}:0:0" "${promptPath}" 2>/dev/null`);
+    console.log(`📸 Saved prompt/sample: ${promptPath} (${imgWidth}x${promptHeight})`);
+    
+    // Crop bottom part (grid)
+    execSync(`ffmpeg -y -i "${testImage}" -vf "crop=${imgWidth}:${gridHeight}:0:${promptHeight}" "${gridPath}" 2>/dev/null`);
+    console.log(`📸 Saved grid: ${gridPath} (${imgWidth}x${gridHeight})`);
+    
+    // Read cropped images as base64
+    const promptBase64 = fs.readFileSync(promptPath).toString('base64');
+    const gridBase64 = fs.readFileSync(gridPath).toString('base64');
+    
+    console.log('\n🤖 Sending to Gemini...\n');
+    
+    const startTime = Date.now();
+    const coordinates = await solveCaptchaWithAI(gridBase64, testPrompt, imgWidth, gridHeight, 0, promptBase64);
+    const elapsed = Date.now() - startTime;
+    
+    const cellSize = gridHeight / 3;
+    console.log('\n═══════════════════════════════════════════════════════════');
+    console.log(`⏱️  Total time: ${elapsed}ms`);
+    console.log(`🎯 Selected cells: ${coordinates.map((c) => {
+      const row = Math.floor(c.y / cellSize);
+      const col = Math.floor(c.x / cellSize);
+      return row * 3 + col + 1;
+    }).join(', ')}`);
+    console.log(`📍 Coordinates: ${JSON.stringify(coordinates)}`);
+    return;
+  }
 
   // Load songs
   if (!fs.existsSync(SONGS_FILE)) {
