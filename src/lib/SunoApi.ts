@@ -656,11 +656,16 @@ class SunoApi {
       const frame = page.frameLocator('iframe[title*="hCaptcha"]');
       const challenge = frame.locator('.challenge-container');
       try {
-        let wait = true;
+        // First iteration: challenge is already loaded (images already fetched), skip waitForRequests.
+        // Subsequent iterations: wait for the new challenge images to load after each submission.
+        let wait = false;
         while (true) {
           if (wait)
             await waitForRequests(page, controller.signal);
-          const drag = (await challenge.locator('.prompt-text').first().innerText()).toLowerCase().includes('drag');
+          // Wait for the challenge container to be fully rendered before interacting
+          await challenge.waitFor({ state: 'visible', timeout: 60000 });
+          const promptText = await challenge.locator('.prompt-text').first().innerText({ timeout: 15000 }).catch(() => '');
+          const drag = promptText.toLowerCase().includes('drag');
           let captcha: any;
           for (let j = 0; j < 3; j++) {
             try {
@@ -709,6 +714,7 @@ class SunoApi {
               logger.info(data);
               await this.click(challenge, { x: +data.x, y: +data.y });
             }
+            wait = true; // Wait for new challenge images after submit
           }
           this.click(frame.locator('.button-submit')).catch(e => {
             if (e.message.includes('viewport'))
