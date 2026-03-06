@@ -2,7 +2,7 @@ import axios, { AxiosInstance } from 'axios';
 import UserAgent from 'user-agents';
 import pino from 'pino';
 import yn from 'yn';
-import { isPage, sleep, waitForRequests } from '@/lib/utils';
+import { isPage, sleep, waitForRequests, AsyncMutex, AsyncSemaphore } from '@/lib/utils';
 import * as cookie from 'cookie';
 import { randomUUID } from 'node:crypto';
 import { Solver } from '@2captcha/captcha-solver';
@@ -81,6 +81,16 @@ class SunoApi {
   private solver = new Solver(process.env.TWOCAPTCHA_KEY + '');
   private ghostCursorEnabled = yn(process.env.BROWSER_GHOST_CURSOR, { default: false });
   private cursor?: Cursor;
+
+  // Concurrency control
+  private keepAliveMutex = new AsyncMutex();
+  private captchaMutex = new AsyncMutex();
+  private requestSemaphore = new AsyncSemaphore(
+    parseInt(process.env.CONCURRENT_LIMIT || '3', 10)
+  );
+  private lastKeepAliveTime = 0;
+  private static readonly KEEPALIVE_COOLDOWN_MS = 30_000; // skip refresh if < 30s ago
+  private requestCounter = 0;
 
   constructor(cookies: string) {
     this.userAgent = new UserAgent(/Macintosh/).random().toString(); // Usually Mac systems get less amount of CAPTCHAs
@@ -168,25 +178,45 @@ class SunoApi {
 
   /**
    * Keep the session alive.
+   * Uses a mutex to prevent concurrent token refreshes, and a cooldown
+   * so rapid back-to-back calls skip redundant refreshes.
    * @param isWait Indicates if the method should wait for the session to be fully renewed before returning.
    */
   public async keepAlive(isWait?: boolean): Promise<void> {
     if (!this.sid) {
       throw new Error('Session ID is not set. Cannot renew token.');
     }
-    // URL to renew session token
-    const renewUrl = `${SunoApi.CLERK_BASE_URL}/v1/client/sessions/${this.sid}/tokens?_is_native=true&_clerk_js_version=${SunoApi.CLERK_VERSION}`;
-    // Renew session token
-    logger.info('KeepAlive...\n');
-    const renewResponse = await this.client.post(renewUrl, {}, {
-      headers: { Authorization: this.cookies.__client }
-    });
-    if (isWait) {
-      await sleep(1, 2);
+
+    // Fast path: skip if recently refreshed (avoids mutex contention)
+    const now = Date.now();
+    if (this.currentToken && now - this.lastKeepAliveTime < SunoApi.KEEPALIVE_COOLDOWN_MS) {
+      return;
     }
-    const newToken = renewResponse.data.jwt;
-    // Update Authorization field in request header with the new JWT token
-    this.currentToken = newToken;
+
+    const release = await this.keepAliveMutex.acquire();
+    try {
+      // Double-check after acquiring lock (another caller may have refreshed while we waited)
+      if (this.currentToken && Date.now() - this.lastKeepAliveTime < SunoApi.KEEPALIVE_COOLDOWN_MS) {
+        return;
+      }
+
+      // URL to renew session token
+      const renewUrl = `${SunoApi.CLERK_BASE_URL}/v1/client/sessions/${this.sid}/tokens?_is_native=true&_clerk_js_version=${SunoApi.CLERK_VERSION}`;
+      // Renew session token
+      logger.info('KeepAlive...\n');
+      const renewResponse = await this.client.post(renewUrl, {}, {
+        headers: { Authorization: this.cookies.__client }
+      });
+      if (isWait) {
+        await sleep(1, 2);
+      }
+      const newToken = renewResponse.data.jwt;
+      // Update Authorization field in request header with the new JWT token
+      this.currentToken = newToken;
+      this.lastKeepAliveTime = Date.now();
+    } finally {
+      release();
+    }
   }
 
   /**
@@ -301,50 +331,343 @@ class SunoApi {
   }
 
   /**
-   * Checks for CAPTCHA verification and solves the CAPTCHA if needed
+   * Returns the first visible locator from a list of selectors.
+   * Uses a raw delay to avoid log spam from the sleep() helper.
+   */
+  private async waitForAnyVisibleLocator(page: Page, selectors: string[], timeout = 30000): Promise<Locator | null> {
+    const start = Date.now();
+    while (Date.now() - start < timeout) {
+      for (const selector of selectors) {
+        const locator = page.locator(selector).first();
+        const visible = await locator.isVisible().catch(() => false);
+        if (visible)
+          return locator;
+      }
+      await new Promise(r => setTimeout(r, 500));
+    }
+    return null;
+  }
+
+  /**
+   * Saves full-page HTML, screenshot, and request log into the debug/ folder.
+   */
+  private async saveDebugSnapshot(page: Page, label: string, requestLog?: string[]): Promise<void> {
+    const debugDir = path.join(process.cwd(), 'debug');
+    try {
+      await fs.mkdir(debugDir, { recursive: true });
+      await fs.writeFile(path.join(debugDir, `${label}.html`), await page.content());
+      await page.screenshot({ path: path.join(debugDir, `${label}.png`), fullPage: true });
+      if (requestLog) {
+        await fs.writeFile(path.join(debugDir, `${label}-requests.log`), requestLog.join('\n'));
+      }
+      // List all frames
+      const frameUrls = page.frames().map(f => f.url());
+      await fs.writeFile(path.join(debugDir, `${label}-frames.log`), frameUrls.join('\n'));
+      logger.info(`Debug snapshot saved: debug/${label}.*`);
+    } catch (e: any) {
+      logger.warn(`Failed to save debug snapshot "${label}": ${e.message}`);
+    }
+  }
+
+  /**
+   * Wait for any CAPTCHA iframe to appear on the page.
+   * Detects hCaptcha, reCAPTCHA, Cloudflare Turnstile, Arkose/FunCaptcha.
+   * @returns The detected captcha type or null if none found.
+   */
+  private async waitForCaptchaFrame(page: Page, timeout = 30000): Promise<'hcaptcha' | 'recaptcha' | 'turnstile' | 'arkose' | null> {
+    const start = Date.now();
+    while (Date.now() - start < timeout) {
+      const frames = page.frames();
+      for (const frame of frames) {
+        const url = frame.url().toLowerCase();
+        if (url.includes('hcaptcha.com')) return 'hcaptcha';
+        if (url.includes('google.com/recaptcha') || url.includes('recaptcha')) return 'recaptcha';
+        if (url.includes('challenges.cloudflare.com') || url.includes('turnstile')) return 'turnstile';
+        if (url.includes('arkoselabs.com') || url.includes('funcaptcha')) return 'arkose';
+      }
+      // Also check for captcha iframes by title attribute
+      for (const selector of [
+        'iframe[title*="hCaptcha" i]',
+        'iframe[title*="recaptcha" i]',
+        'iframe[title*="Cloudflare" i]',
+        'iframe[title*="challenge" i]',
+        'iframe[src*="hcaptcha" i]',
+        'iframe[src*="recaptcha" i]',
+        'iframe[src*="turnstile" i]',
+        'iframe[src*="arkoselabs" i]',
+      ]) {
+        const exists = await page.locator(selector).first().isVisible().catch(() => false);
+        if (exists) {
+          if (selector.includes('hCaptcha') || selector.includes('hcaptcha')) return 'hcaptcha';
+          if (selector.includes('recaptcha')) return 'recaptcha';
+          if (selector.includes('Cloudflare') || selector.includes('turnstile')) return 'turnstile';
+          if (selector.includes('arkoselabs')) return 'arkose';
+        }
+      }
+      await new Promise(r => setTimeout(r, 500));
+    }
+    return null;
+  }
+
+  /**
+   * Checks for CAPTCHA verification and solves the CAPTCHA if needed.
+   * v2: Saves debug snapshots (HTML, screenshots, request & frame logs) into debug/ folder
+   * at every important step so you can inspect the actual page state.
+   * Serialized via captchaMutex so only one browser session runs at a time.
    * @returns {string|null} hCaptcha token. If no verification is required, returns null
    */
   public async getCaptcha(): Promise<string|null> {
     if (!await this.captchaRequired())
       return null;
 
-    logger.info('CAPTCHA required. Launching browser...')
+    // Serialize CAPTCHA solving — only one browser session at a time
+    const releaseCaptcha = await this.captchaMutex.acquire();
+    if (this.captchaMutex.queueLength > 0)
+      logger.info(`CAPTCHA mutex: ${this.captchaMutex.queueLength} request(s) waiting`);
+
+    try {
+      // Re-check after acquiring the lock — a previous caller may have solved it
+      if (!await this.captchaRequired())
+        return null;
+
+      return await this._solveCaptcha();
+    } finally {
+      releaseCaptcha();
+    }
+  }
+
+  /**
+   * Internal CAPTCHA-solving logic (called under captchaMutex).
+   */
+  private async _solveCaptcha(): Promise<string|null> {
+
+    logger.info('CAPTCHA required. Launching browser...');
     const browser = await this.launchBrowser();
     const page = await browser.newPage();
-    await page.goto('https://suno.com/create', { referer: 'https://www.google.com/', waitUntil: 'domcontentloaded', timeout: 0 });
+
+    // Collect ALL network requests for debugging
+    const requestLog: string[] = [];
+    page.on('request', (req: any) => {
+      const url: string = req.url();
+      if (!url.startsWith('data:') && !url.endsWith('.woff2') && !url.endsWith('.woff'))
+        requestLog.push(`[${new Date().toISOString()}] ${req.method()} ${url}`);
+    });
+
+    await page.goto('https://suno.com/create', {
+      referer: 'https://www.google.com/',
+      waitUntil: 'domcontentloaded',
+      timeout: 60000
+    });
 
     logger.info('Waiting for Suno interface to load');
-    // await page.locator('.react-aria-GridList').waitFor({ timeout: 60000 });
-    await page.waitForResponse('**/api/project/**\\?**', { timeout: 60000 }); // wait for song list API call
+    // Wait for the page to actually settle
+    try {
+      await page.waitForLoadState('networkidle', { timeout: 30000 });
+    } catch {
+      logger.warn('Network did not reach idle state within 30s; continuing');
+    }
+
+    // --- Debug snapshot: page loaded ---
+    await this.saveDebugSnapshot(page, '01-page-loaded', requestLog);
 
     if (this.ghostCursorEnabled)
       this.cursor = await createCursor(page);
-    
-    logger.info('Triggering the CAPTCHA');
+
+    // Close any popups / modals / banners
+    for (const closeSelector of [
+      'button[aria-label="Close"]',
+      '[aria-label="close"]',
+      '[aria-label="Dismiss"]',
+      'button:has-text("Got it")',
+      'button:has-text("Accept")',
+      'button:has-text("OK")',
+    ]) {
+      try {
+        const closeBtn = page.locator(closeSelector).first();
+        if (await closeBtn.isVisible({ timeout: 500 }).catch(() => false)) {
+          await closeBtn.click({ timeout: 1000 });
+          logger.info(`Closed popup via ${closeSelector}`);
+        }
+      } catch {}
+    }
+
+    // --- Discover the actual page structure ---
+    // Log all interactive elements on the page for debugging
     try {
-      await page.getByLabel('Close').click({ timeout: 2000 }); // close all popups
-      // await this.click(page, { x: 318, y: 13 });
-    } catch(e) {}
+      const interactiveElements = await page.evaluate(() => {
+        const elements: string[] = [];
+        document.querySelectorAll('button, textarea, input, [contenteditable], [role="textbox"], [role="button"]').forEach((el) => {
+          const tag = el.tagName.toLowerCase();
+          const attrs = Array.from(el.attributes).map(a => `${a.name}="${a.value}"`).join(' ');
+          const text = (el as HTMLElement).innerText?.slice(0, 50) || '';
+          elements.push(`<${tag} ${attrs}> ${text}`);
+        });
+        return elements;
+      });
+      const debugDir = path.join(process.cwd(), 'debug');
+      await fs.mkdir(debugDir, { recursive: true });
+      await fs.writeFile(path.join(debugDir, '02-interactive-elements.log'), interactiveElements.join('\n'));
+      logger.info(`Found ${interactiveElements.length} interactive elements (see debug/02-interactive-elements.log)`);
+    } catch (e: any) {
+      logger.warn(`Failed to enumerate interactive elements: ${e.message}`);
+    }
 
-    const textarea = page.locator('.custom-textarea');
-    await this.click(textarea);
-    await textarea.pressSequentially('Lorem ipsum', { delay: 80 });
+    // --- Step 1: Find and fill prompt input ---
+    logger.info('Looking for prompt input');
+    const promptSelectors = [
+      '.custom-textarea',
+      'textarea[placeholder*="lyrics" i]',
+      'textarea[placeholder*="describe" i]',
+      'textarea[placeholder*="song" i]',
+      'textarea[placeholder*="prompt" i]',
+      'textarea',
+      '[contenteditable="true"][role="textbox"]',
+      '[contenteditable="true"]',
+      'div[role="textbox"]',
+      'input[type="text"]',
+    ];
+    const promptInput = await this.waitForAnyVisibleLocator(page, promptSelectors, 15000);
+    if (promptInput) {
+      const desc = await promptInput.evaluate((el: Element) =>
+        `${el.tagName}.${el.className} placeholder="${el.getAttribute('placeholder') || ''}"`
+      ).catch(() => 'unknown');
+      logger.info(`Found prompt input: ${desc}`);
+      await this.click(promptInput);
+      await new Promise(r => setTimeout(r, 300));
+      await promptInput.pressSequentially('Lorem ipsum dolor sit amet', { delay: 60 });
+    } else {
+      logger.warn('No prompt input found anywhere on page');
+      await this.saveDebugSnapshot(page, '03-no-prompt-input', requestLog);
+    }
 
-    const button = page.locator('button[aria-label="Create"]').locator('div.flex');
-    this.click(button);
+    // --- Step 2: Find and click the Create / Generate button ---
+    logger.info('Looking for Create/Generate button');
+    const buttonSelectors = [
+      'button[aria-label="Create"]',
+      'button:has-text("Create")',
+      '[role="button"]:has-text("Create")',
+      'button[type="submit"]',
+      'button:has-text("Generate")',
+      '[role="button"]:has-text("Generate")',
+      'button:has-text("Make a song")',
+      'button:has-text("Submit")',
+    ];
+    const button = await this.waitForAnyVisibleLocator(page, buttonSelectors, 15000);
+    if (!button) {
+      logger.error('Could not find any Create/Generate button');
+      await this.saveDebugSnapshot(page, '04-no-create-button', requestLog);
+      await browser.browser()?.close();
+      throw new Error(
+        'Could not find a Create/Generate button on the page. '
+        + 'The Suno UI may have changed. Check the debug/ folder for HTML snapshots and screenshots.'
+      );
+    }
 
+    const buttonInfo = await button.evaluate((el: Element) =>
+      `<${el.tagName} class="${el.className}" aria-label="${el.getAttribute('aria-label') || ''}">${(el as HTMLElement).innerText?.slice(0, 40)}`
+    ).catch(() => 'unknown');
+    logger.info(`Found button: ${buttonInfo}`);
+
+    // Set up route interception BEFORE clicking Create so we don't miss the generate call
     const controller = new AbortController();
-    new Promise<void>(async (resolve, reject) => {
+    let rejectOuter: (err: any) => void = () => {};
+    let resolveOuter: (token: string | null) => void = () => {};
+
+    const tokenPromise = new Promise<string | null>((resolve, reject) => {
+      resolveOuter = resolve;
+      rejectOuter = reject;
+
+      // Intercept the generate API call to extract the captcha token
+      page.route('**/api/generate/v2/**', async (route: any) => {
+        try {
+          logger.info('Generate API call intercepted! Extracting token and closing browser');
+          const request = route.request();
+          this.currentToken = request.headers().authorization?.split('Bearer ').pop();
+          const postData = request.postDataJSON();
+          route.abort();
+          controller.abort();
+          browser.browser()?.close();
+          resolve(postData?.token || null);
+        } catch (err) {
+          reject(err);
+        }
+      });
+    });
+
+    // Click the button to trigger generation (and hopefully a CAPTCHA)
+    logger.info('Clicking Create button');
+    await this.click(button);
+    await new Promise(r => setTimeout(r, 3000)); // wait for CAPTCHA to appear
+
+    // --- Debug snapshot: after Create click ---
+    await this.saveDebugSnapshot(page, '05-after-create-click', requestLog);
+
+    // --- Step 3: Detect what CAPTCHA appeared ---
+    logger.info('Waiting for CAPTCHA challenge to appear...');
+    let captchaType = await this.waitForCaptchaFrame(page, 15000);
+
+    if (!captchaType) {
+      // Try clicking the button again — sometimes the first click is swallowed
+      logger.warn('No CAPTCHA detected after first click. Retrying...');
+      await this.click(button);
+      await new Promise(r => setTimeout(r, 5000));
+      await this.saveDebugSnapshot(page, '06-after-second-click', requestLog);
+      captchaType = await this.waitForCaptchaFrame(page, 20000);
+    }
+
+    if (!captchaType) {
+      // Check if the generate API was called without a CAPTCHA (maybe CAPTCHA wasn't needed after all)
+      logger.warn('No CAPTCHA iframe found. Checking if generation proceeded without CAPTCHA...');
+      // Give the tokenPromise a chance to resolve
+      const raceResult = await Promise.race([
+        tokenPromise.then(t => ({ type: 'token' as const, value: t })),
+        new Promise<{ type: 'timeout' }>(r => setTimeout(() => r({ type: 'timeout' }), 10000)),
+      ]);
+      if (raceResult.type === 'token') {
+        logger.info('Generation proceeded without visible CAPTCHA');
+        return raceResult.value;
+      }
+
+      // Truly no CAPTCHA and no generation
+      await this.saveDebugSnapshot(page, '07-no-captcha-final', requestLog);
+      await browser.browser()?.close();
+      throw new Error(
+        'No CAPTCHA appeared and generation did not proceed. '
+        + 'The Suno UI may have changed significantly. '
+        + 'Check the debug/ folder for HTML, screenshots, interactive elements, and request logs.'
+      );
+    }
+
+    logger.info(`Detected CAPTCHA type: ${captchaType}`);
+
+    if (captchaType !== 'hcaptcha') {
+      // We only support hCaptcha via 2Captcha right now
+      await this.saveDebugSnapshot(page, '08-unsupported-captcha', requestLog);
+      await browser.browser()?.close();
+      throw new Error(
+        `Detected CAPTCHA type "${captchaType}" which is not currently supported. `
+        + 'Only hCaptcha is supported via 2Captcha. Check debug/ folder for details.'
+      );
+    }
+
+    // --- Step 4: Solve hCaptcha challenges in a loop ---
+    logger.info('Starting hCaptcha solving loop');
+    const captchaSolverPromise = new Promise<void>(async (resolve, reject) => {
       const frame = page.frameLocator('iframe[title*="hCaptcha"]');
       const challenge = frame.locator('.challenge-container');
       try {
-        let wait = true;
+        // First iteration: challenge is already loaded (images already fetched), skip waitForRequests.
+        // Subsequent iterations: wait for the new challenge images to load after each submission.
+        let wait = false;
         while (true) {
           if (wait)
             await waitForRequests(page, controller.signal);
-          const drag = (await challenge.locator('.prompt-text').first().innerText()).toLowerCase().includes('drag');
+          // Wait for the challenge container to be fully rendered before interacting
+          await challenge.waitFor({ state: 'visible', timeout: 60000 });
+          const promptText = await challenge.locator('.prompt-text').first().innerText({ timeout: 15000 }).catch(() => '');
+          const drag = promptText.toLowerCase().includes('drag');
           let captcha: any;
-          for (let j = 0; j < 3; j++) { // try several times because sometimes 2Captcha could return an error
+          for (let j = 0; j < 3; j++) {
             try {
               logger.info('Sending the CAPTCHA to 2Captcha');
               const payload: paramsCoordinates = {
@@ -352,20 +675,19 @@ class SunoApi {
                 lang: process.env.BROWSER_LOCALE
               };
               if (drag) {
-                // Say to the worker that he needs to click
                 payload.textinstructions = 'CLICK on the shapes at their edge or center as shown above—please be precise!';
                 payload.imginstructions = (await fs.readFile(path.join(process.cwd(), 'public', 'drag-instructions.jpg'))).toString('base64');
               }
               captcha = await this.solver.coordinates(payload);
               break;
-            } catch(err: any) {
+            } catch (err: any) {
               logger.info(err.message);
-              if (j != 2)
+              if (j !== 2)
                 logger.info('Retrying...');
               else
                 throw err;
             }
-          } 
+          }
           if (drag) {
             const challengeBox = await challenge.boundingBox();
             if (challengeBox == null)
@@ -378,11 +700,11 @@ class SunoApi {
             }
             for (let i = 0; i < captcha.data.length; i += 2) {
               const data1 = captcha.data[i];
-              const data2 = captcha.data[i+1];
+              const data2 = captcha.data[i + 1];
               logger.info(JSON.stringify(data1) + JSON.stringify(data2));
               await page.mouse.move(challengeBox.x + +data1.x, challengeBox.y + +data1.y);
               await page.mouse.down();
-              await sleep(1.1); // wait for the piece to be 'unlocked'
+              await sleep(1.1);
               await page.mouse.move(challengeBox.x + +data2.x, challengeBox.y + +data2.y, { steps: 30 });
               await page.mouse.up();
             }
@@ -391,41 +713,34 @@ class SunoApi {
             for (const data of captcha.data) {
               logger.info(data);
               await this.click(challenge, { x: +data.x, y: +data.y });
-            };
+            }
+            wait = true; // Wait for new challenge images after submit
           }
           this.click(frame.locator('.button-submit')).catch(e => {
-            if (e.message.includes('viewport')) // when hCaptcha window has been closed due to inactivity,
-              this.click(button); // click the Create button again to trigger the CAPTCHA
+            if (e.message.includes('viewport'))
+              this.click(button);
             else
               throw e;
           });
         }
-      } catch(e: any) {
-        if (e.message.includes('been closed') // catch error when closing the browser
-          || e.message == 'AbortError') // catch error when waitForRequests is aborted
+      } catch (e: any) {
+        if (e.message.includes('been closed') || e.message === 'AbortError')
           resolve();
         else
           reject(e);
       }
-    }).catch(e => {
-      browser.browser()?.close();
-      throw e;
     });
-    return (new Promise((resolve, reject) => {
-      page.route('**/api/generate/v2/**', async (route: any) => {
-        try {
-          logger.info('hCaptcha token received. Closing browser');
-          route.abort();
-          browser.browser()?.close();
-          controller.abort();
-          const request = route.request();
-          this.currentToken = request.headers().authorization.split('Bearer ').pop();
-          resolve(request.postDataJSON().token);
-        } catch(err) {
-          reject(err);
-        }
-      });
-    }));
+
+    // Wire captcha solver errors into the token promise
+    captchaSolverPromise.catch(e => {
+      browser.browser()?.close();
+      rejectOuter(e);
+    });
+
+    // Prevent unhandled rejection on the solver promise
+    captchaSolverPromise.catch(() => {});
+
+    return tokenPromise;
   }
 
   /**
@@ -557,7 +872,14 @@ class SunoApi {
     continue_clip_id?: string,
     continue_at?: number
   ): Promise<AudioInfo[]> {
-    await this.keepAlive();
+    const reqId = ++this.requestCounter;
+    const release = await this.requestSemaphore.acquire();
+    logger.info(
+      `[req-${reqId}] Acquired slot (active: ${this.requestSemaphore.activeCount}, waiting: ${this.requestSemaphore.waitingCount})`
+    );
+
+    try {
+      await this.keepAlive();
     const payload: any = {
       make_instrumental: make_instrumental,
       mv: model || DEFAULT_MODEL,
@@ -577,7 +899,7 @@ class SunoApi {
       payload.gpt_description_prompt = prompt;
     }
     logger.info(
-      'generateSongs payload:\n' +
+      `[req-${reqId}] generateSongs payload:\n` +
         JSON.stringify(
           {
             prompt: prompt,
@@ -641,6 +963,10 @@ class SunoApi {
         negative_tags: audio.metadata.negative_tags,
         duration: audio.metadata.duration
       }));
+    }
+    } finally {
+      logger.info(`[req-${reqId}] Released slot`);
+      release();
     }
   }
 

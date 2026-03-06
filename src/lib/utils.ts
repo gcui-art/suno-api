@@ -15,8 +15,9 @@ export const sleep = (x: number, y?: number): Promise<void> => {
     const max = Math.max(x, y);
     timeout = Math.floor(Math.random() * (max - min + 1) + min) * 1000;
   }
-  // console.log(`Sleeping for ${timeout / 1000} seconds`);
-  logger.info(`Sleeping for ${timeout / 1000} seconds`);
+  // Only log sleeps >= 1 second to avoid spam from polling loops
+  if (timeout >= 1000)
+    logger.info(`Sleeping for ${timeout / 1000} seconds`);
 
   return new Promise(resolve => setTimeout(resolve, timeout));
 }
@@ -30,14 +31,26 @@ export const isPage = (target: any): target is Page => {
 }
 
 /**
- * Waits for an hCaptcha image requests and then waits for all of them to end
+ * Waits for CAPTCHA-related image/resource requests and then waits for all of them to end.
+ * Detects hCaptcha, reCAPTCHA, Turnstile, and Arkose/FunCaptcha request patterns.
  * @param page
- * @param signal `const controller = new AbortController(); controller.status`
+ * @param signal `const controller = new AbortController(); controller.signal`
  * @returns {Promise<void>} 
  */
 export const waitForRequests = (page: Page, signal: AbortSignal): Promise<void> => {
   return new Promise((resolve, reject) => {
-    const urlPattern = /^https:\/\/img[a-zA-Z0-9]*\.hcaptcha\.com\/.*$/;
+    // Match any CAPTCHA provider's image/resource requests
+    const urlPatterns = [
+      /^https:\/\/img[a-zA-Z0-9]*\.hcaptcha\.com\/.*$/,       // hCaptcha images
+      /^https:\/\/.*\.hcaptcha\.com\/captcha\/.*$/,            // hCaptcha API
+      /^https:\/\/www\.google\.com\/recaptcha\/.*$/,           // reCAPTCHA
+      /^https:\/\/www\.gstatic\.com\/recaptcha\/.*$/,          // reCAPTCHA assets
+      /^https:\/\/challenges\.cloudflare\.com\/.*$/,           // Cloudflare Turnstile
+      /^https:\/\/.*\.arkoselabs\.com\/.*$/,                   // Arkose/FunCaptcha
+    ];
+
+    const matchesCaptchaUrl = (url: string) => urlPatterns.some(p => p.test(url));
+
     let timeoutHandle: NodeJS.Timeout | null = null;
     let activeRequestCount = 0;
     let requestOccurred = false;
@@ -60,7 +73,7 @@ export const waitForRequests = (page: Page, signal: AbortSignal): Promise<void> 
     };
 
     const onRequest = (request: { url: () => string }) => {
-      if (urlPattern.test(request.url())) {
+      if (matchesCaptchaUrl(request.url())) {
         requestOccurred = true;
         activeRequestCount++;
         if (timeoutHandle)
@@ -69,31 +82,31 @@ export const waitForRequests = (page: Page, signal: AbortSignal): Promise<void> 
     };
 
     const onRequestFinished = (request: { url: () => string }) => {
-      if (urlPattern.test(request.url())) {
+      if (matchesCaptchaUrl(request.url())) {
         activeRequestCount--;
         resetTimeout();
       }
     };
 
-    // Wait for an hCaptcha request for up to 1 minute
+    // Wait for a CAPTCHA request for up to 2 minutes
     const initialTimeout = setTimeout(() => {
       if (!requestOccurred) {
         page.off('request', onRequest);
         cleanupListeners();
-        reject(new Error('No hCaptcha request occurred within 1 minute.'));
+        reject(new Error('No CAPTCHA image/resource requests detected within 2 minutes.'));
       } else {
-        // Start waiting for no hCaptcha requests
+        // Start waiting for no CAPTCHA requests
         resetTimeout();
       }
-    }, 60000); // 1 minute timeout
+    }, 120000); // 2 minute timeout
 
     page.on('request', onRequest);
     page.on('requestfinished', onRequestFinished);
     page.on('requestfailed', onRequestFinished);
 
-    // Cleanup the initial timeout if an hCaptcha request occurs
+    // Cleanup the initial timeout if a CAPTCHA request occurs
     page.on('request', (request: { url: () => string }) => {
-      if (urlPattern.test(request.url())) {
+      if (matchesCaptchaUrl(request.url())) {
         clearTimeout(initialTimeout);
       }
     });
@@ -115,4 +128,82 @@ export const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
   'Access-Control-Allow-Headers': 'Content-Type, Authorization',
+}
+
+/**
+ * A simple async mutex. Only one holder at a time; others queue up.
+ * Usage:
+ *   const release = await mutex.acquire();
+ *   try { ... } finally { release(); }
+ */
+export class AsyncMutex {
+  private queue: Array<(release: () => void) => void> = [];
+  private locked = false;
+
+  async acquire(): Promise<() => void> {
+    if (!this.locked) {
+      this.locked = true;
+      return () => this.release();
+    }
+    return new Promise<() => void>((resolve) => {
+      this.queue.push((release) => resolve(release));
+    });
+  }
+
+  private release(): void {
+    if (this.queue.length > 0) {
+      const next = this.queue.shift()!;
+      next(() => this.release());
+    } else {
+      this.locked = false;
+    }
+  }
+
+  get isLocked(): boolean {
+    return this.locked;
+  }
+
+  get queueLength(): number {
+    return this.queue.length;
+  }
+}
+
+/**
+ * An async semaphore that allows up to `maxConcurrency` holders at a time.
+ * Usage:
+ *   const release = await semaphore.acquire();
+ *   try { ... } finally { release(); }
+ */
+export class AsyncSemaphore {
+  private currentCount = 0;
+  private queue: Array<(release: () => void) => void> = [];
+
+  constructor(private maxConcurrency: number) {}
+
+  async acquire(): Promise<() => void> {
+    if (this.currentCount < this.maxConcurrency) {
+      this.currentCount++;
+      return () => this.release();
+    }
+    return new Promise<() => void>((resolve) => {
+      this.queue.push((release) => resolve(release));
+    });
+  }
+
+  private release(): void {
+    this.currentCount--;
+    if (this.queue.length > 0) {
+      this.currentCount++;
+      const next = this.queue.shift()!;
+      next(() => this.release());
+    }
+  }
+
+  get activeCount(): number {
+    return this.currentCount;
+  }
+
+  get waitingCount(): number {
+    return this.queue.length;
+  }
 }
