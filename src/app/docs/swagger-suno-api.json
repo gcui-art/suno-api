@@ -378,6 +378,195 @@
         }
       }
     },
+    "/api/projects": {
+      "get": {
+        "summary": "Get user's projects",
+        "description": "Retrieves the user's projects from Suno API.",
+        "tags": ["default"],
+        "parameters": [
+          {
+            "in": "query",
+            "name": "page",
+            "description": "Page number (defaults to 1)",
+            "required": false,
+            "schema": {
+              "type": "number",
+              "default": 1
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "projects": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "string",
+                            "description": "Project ID"
+                          },
+                          "name": {
+                            "type": "string",
+                            "description": "Project name"
+                          },
+                          "created_at": {
+                            "type": "string",
+                            "description": "Creation date and time"
+                          },
+                          "last_modified": {
+                            "type": "string",
+                            "description": "Last modification date and time"
+                          }
+                        }
+                      }
+                    },
+                    "total_results": {
+                      "type": "integer",
+                      "description": "Total number of projects"
+                    },
+                    "current_page": {
+                      "type": "integer",
+                      "description": "Current page number"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "string",
+                      "example": "Internal server error"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/projects/{id}": {
+      "get": {
+        "summary": "Get project by ID",
+        "description": "Retrieves a specific project by ID from Suno API.",
+        "tags": ["default"],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "description": "Project ID",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "hide_disliked",
+            "description": "Whether to hide disliked content (defaults to false)",
+            "required": false,
+            "schema": {
+              "type": "boolean",
+              "default": false
+            }
+          },
+          {
+            "in": "query",
+            "name": "page",
+            "description": "Page number (defaults to 1)",
+            "required": false,
+            "schema": {
+              "type": "number",
+              "default": 1
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "project": {
+                      "type": "object",
+                      "properties": {
+                        "id": {
+                          "type": "string",
+                          "description": "Project ID"
+                        },
+                        "name": {
+                          "type": "string",
+                          "description": "Project name"
+                        },
+                        "description": {
+                          "type": "string",
+                          "description": "Project description"
+                        },
+                        "created_at": {
+                          "type": "string",
+                          "description": "Creation date and time"
+                        },
+                        "last_modified": {
+                          "type": "string",
+                          "description": "Last modification date and time"
+                        },
+                        "clips": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "description": "Clip information"
+                          }
+                        }
+                      }
+                    },
+                    "total_results": {
+                      "type": "integer",
+                      "description": "Total number of clips in the project"
+                    },
+                    "current_page": {
+                      "type": "integer",
+                      "description": "Current page number"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "string",
+                      "example": "Internal server error"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/get_limit": {
       "get": {
         "summary": "Get quota information.",

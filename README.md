@@ -39,7 +39,7 @@ We have deployed an example bound to a free Suno account, so it has daily usage 
 - Perfectly implements the creation API from suno.ai.
 - Automatically keep the account active.
 - Solve CAPTCHAs automatically using [2Captcha](https://2captcha.com) and [Playwright](https://playwright.dev) with [rebrowser-patches](https://github.com/rebrowser/rebrowser-patches).
-- Compatible with the format of OpenAI’s `/v1/chat/completions` API.
+- Compatible with the format of OpenAI's `/v1/chat/completions` API.
 - Supports Custom Mode.
 - One-click deployment to [Vercel](#deploy-to-vercel) & [Docker](#docker).
 - In addition to the standard API, it also adapts to the API Schema of Agent platforms like GPTs and Coze, so you can use it as a tool/plugin/Action for LLMs and integrate it into any AI Agent.
@@ -99,7 +99,7 @@ docker compose build && docker compose up
 
 - If deployed to Vercel, please add the environment variables in the Vercel dashboard.
 
-- If you’re running this locally, be sure to add the following to your `.env` file:
+- If you're running this locally, be sure to add the following to your `.env` file:
 #### Environment variables
 - `SUNO_COOKIE` — the `Cookie` header you obtained in the first step.
 - `TWOCAPTCHA_KEY` — your 2Captcha API key from the second step.
@@ -118,7 +118,7 @@ BROWSER_HEADLESS=true
 
 ### 5. Run suno-api
 
-- If you’ve deployed to Vercel:
+- If you've deployed to Vercel:
   - Please click on Deploy in the Vercel dashboard and wait for the deployment to be successful.
   - Visit the `https://<vercel-assigned-domain>/api/get_limit` API for testing.
 - If running locally:
@@ -148,10 +148,10 @@ Suno API currently mainly implements the following APIs:
 
 ```bash
 - `/api/generate`: Generate music
-- `/v1/chat/completions`: Generate music - Call the generate API in a format that works with OpenAI’s API.
+- `/v1/chat/completions`: Generate music - Call the generate API in a format that works with OpenAI's API.
 - `/api/custom_generate`: Generate music (Custom Mode, support setting lyrics, music style, title, etc.)
 - `/api/generate_lyrics`: Generate lyrics based on prompt
-- `/api/get`: Get music information based on the id. Use “,” to separate multiple ids.
+- `/api/get`: Get music information based on the id. Use "," to separate multiple ids.
     If no IDs are provided, all music will be returned.
 - `/api/get_limit`: Get quota Info
 - `/api/extend_audio`: Extend audio length
@@ -159,6 +159,8 @@ Suno API currently mainly implements the following APIs:
 - `/api/get_aligned_lyrics`: Get list of timestamps for each word in the lyrics
 - `/api/clip`: Get clip information based on ID passed as query parameter `id`
 - `/api/concat`: Generate the whole song from extensions
+- `/api/projects`: Get a list of projects
+- `/api/projects/{id}`: Get a specific project by ID with options to hide disliked content
 ```
 
 You can also specify the cookies in the `Cookie` header of your request, overriding the default cookies in the `SUNO_COOKIE` environment variable. This comes in handy when, for example, you want to use multiple free accounts at the same time.
@@ -215,6 +217,16 @@ def generate_whole_song(clip_id):
     payload = {"clip_id": clip_id}
     url = f"{base_url}/api/concat"
     response = requests.post(url, json=payload)
+    return response.json()
+
+def get_projects(page=1):
+    url = f"{base_url}/api/projects?page={page}"
+    response = requests.get(url)
+    return response.json()
+
+def get_project(project_id, hide_disliked=False, page=1):
+    url = f"{base_url}/api/projects/{project_id}?hide_disliked={str(hide_disliked).lower()}&page={page}"
+    response = requests.get(url)
     return response.json()
 
 
@@ -285,6 +297,18 @@ async function getQuotaInformation() {
 
 async function getClipInformation(clipId) {
   const url = `${baseUrl}/api/clip?id=${clipId}`;
+  const response = await axios.get(url);
+  return response.data;
+}
+
+async function getProjects(page = 1) {
+  const url = `${baseUrl}/api/projects?page=${page}`;
+  const response = await axios.get(url);
+  return response.data;
+}
+
+async function getProject(projectId, hideDisliked = false, page = 1) {
+  const url = `${baseUrl}/api/projects/${projectId}?hide_disliked=${hideDisliked}&page=${page}`;
   const response = await axios.get(url);
   return response.data;
 }
