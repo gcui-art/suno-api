@@ -12,7 +12,13 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "next lint"
+    "lint": "next lint",
+    "refresh-passkey": "node scripts/refresh-passkey.mjs",
+    "refresh-passkey:rebuild": "node scripts/refresh-passkey.mjs --rebuild",
+    "refresh-passkey:restart": "node scripts/refresh-passkey.mjs --restart",
+    "passkey-server": "node scripts/passkey-server.mjs",
+    "passkey-server:rebuild": "node scripts/passkey-server.mjs --rebuild",
+    "passkey-server:restart": "node scripts/passkey-server.mjs --restart"
   },
   "dependencies": {
     "@2captcha/captcha-solver": "^1.3.0",

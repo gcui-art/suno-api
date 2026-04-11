@@ -18,7 +18,7 @@ const cache = globalForSunoApi.sunoApiCache || new Map<string, SunoApi>();
 globalForSunoApi.sunoApiCache = cache;
 
 const logger = pino();
-export const DEFAULT_MODEL = 'chirp-v3-5';
+export const DEFAULT_MODEL = 'chirp-fenix';
 
 export interface AudioInfo {
   id: string; // Unique identifier for the audio
@@ -68,7 +68,7 @@ interface PersonaResponse {
 }
 
 class SunoApi {
-  private static BASE_URL: string = 'https://studio-api.prod.suno.com';
+  private static BASE_URL: string = 'https://studio-api-prod.suno.com';
   private static CLERK_BASE_URL: string = 'https://auth.suno.com';
   private static CLERK_VERSION = '5.117.0';
 
@@ -305,6 +305,10 @@ class SunoApi {
    * @returns {string|null} hCaptcha token. If no verification is required, returns null
    */
   public async getCaptcha(): Promise<string|null> {
+    // PATCH: skip captcha entirely — Playwright selectors are broken after suno.com UI update
+    logger.info('CAPTCHA bypass: returning null token');
+    return null;
+
     if (!await this.captchaRequired())
       return null;
 
@@ -558,15 +562,39 @@ class SunoApi {
     continue_at?: number
   ): Promise<AudioInfo[]> {
     await this.keepAlive();
+    // PATCH: build payload matching real suno.com web client format
+    const passkeyToken = process.env.SUNO_PASSKEY_TOKEN || '';
+    const txUuid = (typeof crypto !== 'undefined' && crypto.randomUUID) ? crypto.randomUUID() : Math.random().toString(36);
     const payload: any = {
-      make_instrumental: make_instrumental,
+      token: passkeyToken,
+      generation_type: 'TEXT',
       mv: model || DEFAULT_MODEL,
       prompt: '',
-      generation_type: 'TEXT',
-      continue_at: continue_at,
-      continue_clip_id: continue_clip_id,
-      task: task,
-      token: await this.getCaptcha()
+      gpt_description_prompt: '',
+      make_instrumental: make_instrumental,
+      user_uploaded_images_b64: null,
+      metadata: {
+        web_client_pathname: '/create',
+        is_max_mode: false,
+        is_mumble: false,
+        create_mode: 'simple',
+        user_tier: process.env.SUNO_USER_TIER || '3eaebef3-ef46-446a-931c-3d50cd1514f1',
+        create_session_token: process.env.SUNO_CREATE_SESSION_TOKEN || (typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : ''),
+        disable_volume_normalization: false,
+        lyrics_model: 'default',
+      },
+      override_fields: [],
+      cover_clip_id: null,
+      cover_start_s: null,
+      cover_end_s: null,
+      persona_id: null,
+      artist_clip_id: null,
+      artist_start_s: null,
+      artist_end_s: null,
+      continue_clip_id: continue_clip_id || null,
+      continued_aligned_prompt: null,
+      continue_at: continue_at || null,
+      transaction_uuid: txUuid,
     };
     if (isCustom) {
       payload.tags = tags;
@@ -594,7 +622,7 @@ class SunoApi {
         )
     );
     const response = await this.client.post(
-      `${SunoApi.BASE_URL}/api/generate/v2/`,
+      `${SunoApi.BASE_URL}/api/generate/v2-web/`,
       payload,
       {
         timeout: 10000 // 10 seconds timeout
