@@ -107,6 +107,7 @@ docker compose build && docker compose up
 - `BROWSER_GHOST_CURSOR` — use ghost-cursor-playwright to simulate smooth mouse movements. Please note that it doesn't seem to make any difference in the rate of CAPTCHAs, so you can set it to `false`. Retained for future testing.
 - `BROWSER_LOCALE` — the language of the browser. Using either `en` or `ru` is recommended, since those have the most workers on 2Captcha. [List of supported languages](https://2captcha.com/2captcha-api#language)
 - `BROWSER_HEADLESS` — run the browser without the window. You probably want to set this to `true`.
+- `MANUAL_CAPTCHA` *(new)* — how to handle CAPTCHAs. See the **CAPTCHA strategy** section below. Leave unset for the original automatic behavior.
 ```bash
 SUNO_COOKIE=<…>
 TWOCAPTCHA_KEY=<…>
@@ -114,7 +115,21 @@ BROWSER=chromium
 BROWSER_GHOST_CURSOR=false
 BROWSER_LOCALE=en
 BROWSER_HEADLESS=true
+MANUAL_CAPTCHA=                # unset / true / fallback — see below
 ```
+
+#### CAPTCHA strategy (`MANUAL_CAPTCHA`)
+
+Suno's web UI is redesigned periodically, and the automatic CAPTCHA solver depends on DOM selectors that can drift (e.g. the v5.5 redesign removed the `.custom-textarea` selector, causing automatic flows to time out — issue [#263](https://github.com/gcui-art/suno-api/issues/263)). `MANUAL_CAPTCHA` lets you opt into a human-in-the-loop fallback that survives UI changes.
+
+| Value | Behavior |
+| --- | --- |
+| *unset* / `false` | **Automatic only** — the original behavior. Requires `TWOCAPTCHA_KEY`. Fastest path when it works. |
+| `true` | **Manual only** — skip the automatic flow entirely. Every CAPTCHA opens a visible browser; you fill the Suno UI and click *Create* yourself. The hCaptcha token is harvested from the network request you trigger. No DOM selectors involved, so it survives UI changes. |
+| `fallback` | **Try automatic, fall back to manual on error.** Recommended for local/personal use: you get automation when Suno cooperates, and a working escape hatch when the UI changed or the 2Captcha solver fails. |
+
+Manual / fallback modes are **not suitable for headless server deployments**, since they require a human to interact with the visible browser. For Vercel / Docker deployments, stick with the default automatic mode + `TWOCAPTCHA_KEY`.
+
 
 ### 5. Run suno-api
 

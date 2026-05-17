@@ -122,6 +122,12 @@ class SunoApi {
 
   public async init(): Promise<SunoApi> {
     //await this.getClerkLatestVersion();
+    const captchaMode = (process.env.MANUAL_CAPTCHA || '').toLowerCase().trim();
+    if (captchaMode === 'true' || captchaMode === '1' || captchaMode === 'yes') {
+      logger.info('CAPTCHA mode: MANUAL — every captcha will open a visible browser for human solving');
+    } else if (captchaMode === 'fallback') {
+      logger.info('CAPTCHA mode: FALLBACK — automatic first, manual on error');
+    }
     await this.getAuthToken();
     await this.keepAlive();
     return this;
@@ -301,10 +307,99 @@ class SunoApi {
   }
 
   /**
-   * Checks for CAPTCHA verification and solves the CAPTCHA if needed
-   * @returns {string|null} hCaptcha token. If no verification is required, returns null
+   * Manual CAPTCHA mode: opens a visible browser, lets the human user fill the Suno
+   * web UI and click Create themselves. We just hijack the /api/generate/v2 request
+   * to steal the hCaptcha token from it. Works with any Suno UI version (no DOM
+   * selectors needed). Triggered by env var MANUAL_CAPTCHA=true.
+   */
+  public async getCaptchaManual(): Promise<string|null> {
+    if (!await this.captchaRequired())
+      return null;
+
+    logger.info('CAPTCHA required. Opening VISIBLE browser for manual solve...');
+    // Force the browser to be visible even if BROWSER_HEADLESS=true is set.
+    const prevHeadless = process.env.BROWSER_HEADLESS;
+    process.env.BROWSER_HEADLESS = 'false';
+    const browser = await this.launchBrowser();
+    process.env.BROWSER_HEADLESS = prevHeadless;
+
+    const page = await browser.newPage();
+    await page.goto('https://suno.com/create', { waitUntil: 'domcontentloaded', timeout: 0 });
+    try { await page.bringToFront(); } catch {} // force window to front on macOS
+
+    logger.info('=================================================================');
+    logger.info('ACTION REQUIRED IN THE BROWSER:');
+    logger.info('  1. Fill the Suno UI (anything: description, lyrics, style, ...)');
+    logger.info('  2. Click the "Create" button');
+    logger.info('  3. Solve any hCaptcha that appears');
+    logger.info('The browser will close automatically once the token is captured.');
+    logger.info('=================================================================');
+
+    return new Promise<string>((resolve, reject) => {
+      let captured = false;
+      page.route('**/api/generate/v2/**', async (route: any) => {
+        if (captured) {
+          try { await route.continue(); } catch {}
+          return;
+        }
+        captured = true;
+        try {
+          const request = route.request();
+          const auth = request.headers().authorization;
+          if (auth) this.currentToken = auth.split('Bearer ').pop();
+          const body = request.postDataJSON();
+          const token = body?.token;
+          logger.info(`hCaptcha token captured (length=${token?.length}). Closing browser.`);
+          try { await route.abort(); } catch {}
+          try { await browser.browser()?.close(); } catch {}
+          if (!token) reject(new Error('No token field in intercepted /api/generate/v2 body'));
+          else resolve(token);
+        } catch (err: any) {
+          reject(err);
+        }
+      });
+      // No timeout — let the user take as long as they need.
+      // Detect browser closed by user as a cancel.
+      browser.on('close', () => {
+        if (!captured) reject(new Error('Browser closed by user before captcha solved'));
+      });
+    });
+  }
+
+  /**
+   * Public CAPTCHA dispatcher. Routes to the automatic flow, the manual flow, or
+   * the fallback flow (try auto, on error use manual) based on MANUAL_CAPTCHA.
+   *
+   *   MANUAL_CAPTCHA unset / false → automatic only (original gcui-art behavior)
+   *   MANUAL_CAPTCHA=true          → manual only (skip auto entirely)
+   *   MANUAL_CAPTCHA=fallback      → try auto, fall back to manual on any error
    */
   public async getCaptcha(): Promise<string|null> {
+    const mode = (process.env.MANUAL_CAPTCHA || '').toLowerCase().trim();
+    if (mode === 'true' || mode === '1' || mode === 'yes') {
+      return this.getCaptchaManual();
+    }
+    if (mode === 'fallback') {
+      try {
+        return await this.getCaptchaAuto();
+      } catch (e: any) {
+        logger.warn({ err: e?.message ?? String(e) },
+          'Automatic CAPTCHA failed — falling back to MANUAL mode');
+        return this.getCaptchaManual();
+      }
+    }
+    return this.getCaptchaAuto();
+  }
+
+  /**
+   * Automated CAPTCHA flow: launches a headless browser, navigates the Suno web UI,
+   * and uses 2Captcha to solve any hCaptcha challenge. Fragile to UI changes —
+   * known to break against Suno v5.5+ where `.custom-textarea` no longer exists.
+   * Use MANUAL_CAPTCHA=true or MANUAL_CAPTCHA=fallback to opt into the manual flow.
+   *
+   * @returns {string|null} hCaptcha token. If no verification is required, returns null.
+   */
+  private async getCaptchaAuto(): Promise<string|null> {
     if (!await this.captchaRequired())
       return null;
 
