@@ -1,0 +1,17 @@
+{
+  "name": "suno-cookie-extractor",
+  "description": "Automate extraction of SUNO_COOKIE for suno-api.",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "start": "node get-cookie.mjs --save",
+    "get-cookie": "node get-cookie.mjs --save",
+    "verify-cookie": "node verify-cookie.mjs",
+    "postinstall": "playwright-core install chromium",
+    "install-browsers": "playwright-core install chromium"
+  },
+  "dependencies": {
+    "rebrowser-playwright-core": "^1.49.1"
+  }
+}

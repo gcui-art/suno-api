@@ -12,7 +12,9 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "next lint"
+    "lint": "next lint",
+    "get-cookie": "node suno-cookie-extractor/get-cookie.mjs --save",
+    "verify-cookie": "node suno-cookie-extractor/verify-cookie.mjs"
   },
   "dependencies": {
     "@2captcha/captcha-solver": "^1.3.0",
