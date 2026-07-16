@@ -1,6 +1,6 @@
 import { NextResponse, NextRequest } from "next/server";
 import { cookies } from 'next/headers'
-import { DEFAULT_MODEL, sunoApi } from "@/lib/SunoApi";
+import { sunoApi } from "@/lib/SunoApi";
 import { corsHeaders } from "@/lib/utils";
 
 export const dynamic = "force-dynamic";
@@ -14,7 +14,7 @@ export async function POST(req: NextRequest) {
       const audioInfo = await (await sunoApi((await cookies()).toString())).generate(
         prompt,
         Boolean(make_instrumental),
-        model || DEFAULT_MODEL,
+      model,
         Boolean(wait_audio)
       );
 
@@ -26,7 +26,10 @@ export async function POST(req: NextRequest) {
         }
       });
     } catch (error: any) {
-      console.error('Error generating audio:', error);
+      console.error('Error generating audio:', {
+        status: error.response?.status,
+        detail: error.response?.data?.detail || error.message
+      });
       
       // Handle different types of errors
       if (error.response) {

@@ -5,10 +5,10 @@ import yn from 'yn';
 import { isPage, sleep, waitForRequests } from '@/lib/utils';
 import * as cookie from 'cookie';
 import { randomUUID } from 'node:crypto';
-import { Solver } from '@2captcha/captcha-solver';
-import { paramsCoordinates } from '@2captcha/captcha-solver/dist/structs/2captcha';
 import { BrowserContext, Page, Locator, chromium, firefox } from 'rebrowser-playwright-core';
 import { createCursor, Cursor } from 'ghost-cursor-playwright';
+import { Solver } from '@2captcha/captcha-solver';
+import { paramsCoordinates } from '@2captcha/captcha-solver/dist/structs/2captcha';
 import { promises as fs } from 'fs';
 import path from 'node:path';
 
@@ -68,13 +68,18 @@ interface PersonaResponse {
 }
 
 class SunoApi {
-  private static BASE_URL: string = 'https://studio-api.prod.suno.com';
+  private static BASE_URL: string = 'https://studio-api-prod.suno.com';
   private static CLERK_BASE_URL: string = 'https://auth.suno.com';
   private static CLERK_VERSION = '5.117.0';
 
   private readonly client: AxiosInstance;
   private sid?: string;
   private currentToken?: string;
+  private currentBrowserModel?: string;
+  private currentBrowserHeaders?: Record<string, string>;
+  private currentBrowserPayload?: Record<string, unknown>;
+  private pendingBrowserOverrides?: Record<string, unknown>;
+  private browserGenerationResponse?: any;
   private deviceId?: string;
   private userAgent?: string;
   private cookies: Record<string, string | undefined>;
@@ -275,7 +280,7 @@ class SunoApi {
         '--disable-setuid-sandbox');
     const browser = await this.getBrowserType().launch({
       args,
-      headless: yn(process.env.BROWSER_HEADLESS, { default: true })
+      headless: yn(process.env.BROWSER_HEADLESS, { default: true }) && process.env.MANUAL_CAPTCHA === 'false'
     });
     const context = await browser.newContext({ userAgent: this.userAgent, locale: process.env.BROWSER_LOCALE, viewport: null });
     const cookies = [];
@@ -288,15 +293,39 @@ class SunoApi {
       sameSite: lax
     });
     for (const key in this.cookies) {
+      const value = this.cookies[key];
+      // Keep the freshly renewed Clerk token above. Re-injecting the stale
+      // browser __session value can silently replace it.
+      if (key === '__session' || value === undefined)
+        continue;
+
+      // Chromium rejects Cookie fields containing separators/control chars.
+      // Suno's header also carries analytics values such as JSON-encoded
+      // g_state, which are not needed for authentication and cannot be passed
+      // through Storage.setCookies as-is.
+      const invalidName = /[\u0000-\u001F\u007F()<>@,;:\\"/\[\]?={} \t]/;
+      const invalidValue = /[\u0000-\u001F\u007F";,\\]/;
+      if (invalidName.test(key) || invalidValue.test(value))
+        continue;
+
       cookies.push({
         name: key,
-        value: this.cookies[key]+'',
+        value,
         domain: '.suno.com',
         path: '/',
         sameSite: lax
       })
     }
-    await context.addCookies(cookies);
+    for (const browserCookie of cookies) {
+      try {
+        await context.addCookies([browserCookie]);
+      } catch (error) {
+        logger.warn(
+          { cookieName: browserCookie.name },
+          'Skipping a cookie that Chromium rejected'
+        );
+      }
+    }
     return context;
   }
 
@@ -305,17 +334,24 @@ class SunoApi {
    * @returns {string|null} hCaptcha token. If no verification is required, returns null
    */
   public async getCaptcha(): Promise<string|null> {
-    if (!await this.captchaRequired())
+    const challengeRequired = await this.captchaRequired();
+    if (!challengeRequired && process.env.MANUAL_CAPTCHA === 'false')
       return null;
 
-    logger.info('CAPTCHA required. Launching browser...')
+    logger.info(
+      challengeRequired
+        ? 'CAPTCHA required. Launching browser...'
+        : 'Launching browser to capture the current Suno generation model...'
+    )
     const browser = await this.launchBrowser();
     const page = await browser.newPage();
     await page.goto('https://suno.com/create', { referer: 'https://www.google.com/', waitUntil: 'domcontentloaded', timeout: 0 });
 
     logger.info('Waiting for Suno interface to load');
     // await page.locator('.react-aria-GridList').waitFor({ timeout: 60000 });
-    await page.waitForResponse('**/api/project/**\\?**', { timeout: 60000 }); // wait for song list API call
+    await page.waitForResponse('**/api/project/**\\?**', { timeout: 30000 }).catch(() => {
+      logger.warn('Song list request was not observed; continuing after the create page loaded.');
+    });
 
     if (this.ghostCursorEnabled)
       this.cursor = await createCursor(page);
@@ -326,12 +362,122 @@ class SunoApi {
       // await this.click(page, { x: 318, y: 13 });
     } catch(e) {}
 
-    const textarea = page.locator('.custom-textarea');
+    const textarea = page.locator('textarea:visible, [contenteditable="true"]:visible').first();
+    logger.info(
+      { editableCount: await page.locator('textarea:visible, [contenteditable="true"]:visible').count() },
+      'Located current Suno prompt editor candidates'
+    );
     await this.click(textarea);
     await textarea.pressSequentially('Lorem ipsum', { delay: 80 });
 
-    const button = page.locator('button[aria-label="Create"]').locator('div.flex');
-    this.click(button);
+    page.on('request', request => {
+      const requestUrl = new URL(request.url());
+      if (
+        requestUrl.host.includes('suno') &&
+        ['xhr', 'fetch'].includes(request.resourceType())
+      )
+        logger.info(
+          { host: requestUrl.host, path: requestUrl.pathname, resourceType: request.resourceType() },
+          'Observed Suno API request after prompt entry'
+        );
+    });
+
+    // The current Suno flow is completed by the account owner in the browser.
+    // Keep this opt-in path ahead of the legacy solver so newer challenge
+    // progress requests do not get sent to an external CAPTCHA-solving service.
+    if (process.env.MANUAL_CAPTCHA !== 'false') {
+      page.on('response', response => {
+        try {
+          const url = new URL(response.url());
+          if (url.pathname.endsWith('/api/challenge/progress'))
+            logger.info({ host: url.host, status: response.status() }, 'Observed Suno challenge progress update');
+        } catch (_) {
+          // Ignore malformed third-party URLs emitted by the browser.
+        }
+      });
+      let capturedToken: string|null = null;
+      const generationResponsePromise = page.waitForResponse(
+        response => response.url().includes('/api/generate/') && response.request().method() === 'POST',
+        { timeout: 5 * 60 * 1000 }
+      );
+      await page.route('**/api/generate/**', async (route: any) => {
+        try {
+          const request = route.request();
+          const body = request.postDataJSON();
+          if (body) {
+            capturedToken = body.token || null;
+            this.currentToken = request.headers().authorization?.split('Bearer ').pop();
+            if (typeof body.mv === 'string')
+              this.currentBrowserModel = body.mv;
+            const browserHeaders = request.headers();
+            const forwardedHeaderNames = [
+              'origin',
+              'referer',
+              'user-agent',
+              'sec-ch-ua',
+              'sec-ch-ua-mobile',
+              'sec-ch-ua-platform',
+              'device-id',
+              'x-suno-client',
+              'affiliate-id'
+            ];
+            this.currentBrowserHeaders = Object.fromEntries(
+              forwardedHeaderNames
+                .filter(name => browserHeaders[name])
+                .map(name => [name, browserHeaders[name]])
+            );
+            const { token: _token, ...browserPayload } = body;
+            this.currentBrowserPayload = browserPayload;
+            logger.info(
+              { model: this.currentBrowserModel },
+              'Manual Suno challenge completed; continuing the browser generation request.'
+            );
+            const mergedBody: Record<string, unknown> = {
+              ...body,
+              ...this.pendingBrowserOverrides,
+              mv: this.pendingBrowserOverrides?.mv || body.mv,
+              token: body.token
+            };
+            if (this.pendingBrowserOverrides?.custom_mode === true)
+              delete mergedBody.gpt_description_prompt;
+            await route.continue({ postData: JSON.stringify(mergedBody) });
+          } else {
+            await route.continue();
+          }
+        } catch (error) {
+          await route.abort();
+          throw error;
+        }
+      });
+      logger.info('Complete the Suno challenge in the visible browser window. Waiting up to 5 minutes.');
+      await this.click(page.locator('button[aria-label="Create song"]:visible').first());
+      const generationResponse = await generationResponsePromise;
+      const responseBody = await generationResponse.json().catch(() => null);
+      if (!generationResponse.ok())
+        throw new Error(responseBody?.detail || `Suno browser generation failed with HTTP ${generationResponse.status()}`);
+      this.browserGenerationResponse = responseBody;
+      await browser.browser()?.close();
+      return capturedToken;
+    }
+
+    const tokenPromise = new Promise<string>((resolve, reject) => {
+      page.route('**/api/generate/**', async (route: any) => {
+        try {
+          logger.info('Generation request token received. Closing browser');
+          route.abort();
+          browser.browser()?.close();
+          controller.abort();
+          const request = route.request();
+          this.currentToken = request.headers().authorization?.split('Bearer ').pop();
+          resolve(request.postDataJSON().token);
+        } catch(err) {
+          reject(err);
+        }
+      });
+    });
+
+    const button = page.locator('button[aria-label="Create song"]:visible').first();
+    const triggerCaptcha = this.click(button);
 
     const controller = new AbortController();
     new Promise<void>(async (resolve, reject) => {
@@ -411,21 +557,14 @@ class SunoApi {
       browser.browser()?.close();
       throw e;
     });
-    return (new Promise((resolve, reject) => {
-      page.route('**/api/generate/v2/**', async (route: any) => {
-        try {
-          logger.info('hCaptcha token received. Closing browser');
-          route.abort();
-          browser.browser()?.close();
-          controller.abort();
-          const request = route.request();
-          this.currentToken = request.headers().authorization.split('Bearer ').pop();
-          resolve(request.postDataJSON().token);
-        } catch(err) {
-          reject(err);
-        }
-      });
-    }));
+    await triggerCaptcha;
+    logger.info('Clicked the current Suno Create song button');
+    await page.waitForTimeout(2000);
+    await page.screenshot({
+      path: path.join(process.cwd(), 'suno-debug-after-click.png'),
+      fullPage: false
+    });
+    return tokenPromise;
   }
 
   /**
@@ -558,15 +697,42 @@ class SunoApi {
     continue_at?: number
   ): Promise<AudioInfo[]> {
     await this.keepAlive();
+    this.pendingBrowserOverrides = isCustom
+      ? {
+          make_instrumental,
+          mv: model,
+          prompt,
+          tags,
+          title,
+          negative_tags,
+          generation_type: 'TEXT',
+          custom_mode: true,
+          continue_at,
+          continue_clip_id,
+          task
+        }
+      : {
+          make_instrumental,
+          mv: model,
+          gpt_description_prompt: prompt,
+          generation_type: 'TEXT',
+          custom_mode: false,
+          continue_at,
+          continue_clip_id,
+          task
+        };
+    const captchaToken = await this.getCaptcha();
     const payload: any = {
+      ...this.currentBrowserPayload,
       make_instrumental: make_instrumental,
-      mv: model || DEFAULT_MODEL,
+      mv: model || this.currentBrowserModel || DEFAULT_MODEL,
       prompt: '',
       generation_type: 'TEXT',
+      custom_mode: isCustom,
       continue_at: continue_at,
       continue_clip_id: continue_clip_id,
       task: task,
-      token: await this.getCaptcha()
+      token: captchaToken
     };
     if (isCustom) {
       payload.tags = tags;
@@ -577,33 +743,33 @@ class SunoApi {
       payload.gpt_description_prompt = prompt;
     }
     logger.info(
-      'generateSongs payload:\n' +
-        JSON.stringify(
-          {
-            prompt: prompt,
-            isCustom: isCustom,
-            tags: tags,
-            title: title,
-            make_instrumental: make_instrumental,
-            wait_audio: wait_audio,
-            negative_tags: negative_tags,
-            payload: payload
-          },
-          null,
-          2
-        )
-    );
-    const response = await this.client.post(
-      `${SunoApi.BASE_URL}/api/generate/v2/`,
-      payload,
       {
-        timeout: 10000 // 10 seconds timeout
-      }
+        isCustom,
+        title,
+        model: payload.mv,
+        make_instrumental,
+        wait_audio
+      },
+      'Submitting Suno generation request'
     );
-    if (response.status !== 200) {
-      throw new Error('Error response:' + response.statusText);
+    let responseData = this.browserGenerationResponse;
+    this.browserGenerationResponse = undefined;
+    this.pendingBrowserOverrides = undefined;
+    if (!responseData) {
+      const response = await this.client.post(
+        `${SunoApi.BASE_URL}/api/generate/v2-web/`,
+        payload,
+        {
+          timeout: 10000, // 10 seconds timeout
+          headers: this.currentBrowserHeaders
+        }
+      );
+      if (response.status !== 200) {
+        throw new Error('Error response:' + response.statusText);
+      }
+      responseData = response.data;
     }
-    const songIds = response.data.clips.map((audio: any) => audio.id);
+    const songIds = responseData.clips.map((audio: any) => audio.id);
     //Want to wait for music file generation
     if (wait_audio) {
       const startTime = Date.now();
@@ -624,7 +790,7 @@ class SunoApi {
       }
       return lastResponse;
     } else {
-      return response.data.clips.map((audio: any) => ({
+      return responseData.clips.map((audio: any) => ({
         id: audio.id,
         title: audio.title,
         image_url: audio.image_url,

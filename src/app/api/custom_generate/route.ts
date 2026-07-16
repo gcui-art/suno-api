@@ -1,6 +1,6 @@
 import { NextResponse, NextRequest } from "next/server";
 import { cookies } from 'next/headers';
-import { DEFAULT_MODEL, sunoApi } from "@/lib/SunoApi";
+import { sunoApi } from "@/lib/SunoApi";
 import { corsHeaders } from "@/lib/utils";
 
 export const maxDuration = 60; // allow longer timeout for wait_audio == true
@@ -14,7 +14,7 @@ export async function POST(req: NextRequest) {
       const audioInfo = await (await sunoApi((await cookies()).toString())).custom_generate(
         prompt, tags, title,
         Boolean(make_instrumental),
-        model || DEFAULT_MODEL,
+        model,
         Boolean(wait_audio),
         negative_tags
       );
@@ -26,7 +26,10 @@ export async function POST(req: NextRequest) {
         }
       });
     } catch (error: any) {
-      console.error('Error generating custom audio:', error);
+      console.error('Error generating custom audio:', {
+        status: error.response?.status,
+        detail: error.response?.data?.detail || error.message
+      });
       return new NextResponse(JSON.stringify({ error: error.response?.data?.detail || error.toString() }), {
         status: error.response?.status || 500,
         headers: {

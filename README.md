@@ -27,7 +27,7 @@ Suno is an amazing AI music service. Although the official API is not yet availa
 
 We discovered that some users have similar needs, so we decided to open-source this project, hoping you'll like it.
 
-This implementation uses the paid [2Captcha](https://2captcha.com/about) service (a.k.a. ruCaptcha) to solve the hCaptcha challenges automatically and does not use any already made closed-source paid Suno API implementations.
+This implementation supports Suno's current challenge flow. By default, a visible browser is opened so the account owner can complete the challenge manually; the API then resumes the original generation request.
 
 ## Demo
 
@@ -38,7 +38,7 @@ We have deployed an example bound to a free Suno account, so it has daily usage 
 
 - Perfectly implements the creation API from suno.ai.
 - Automatically keep the account active.
-- Solve CAPTCHAs automatically using [2Captcha](https://2captcha.com) and [Playwright](https://playwright.dev) with [rebrowser-patches](https://github.com/rebrowser/rebrowser-patches).
+- Detect the current `/api/challenge/progress` flow and resume generation after manual verification using [Playwright](https://playwright.dev) with [rebrowser-patches](https://github.com/rebrowser/rebrowser-patches).
 - Compatible with the format of OpenAI’s `/v1/chat/completions` API.
 - Supports Custom Mode.
 - One-click deployment to [Vercel](#deploy-to-vercel) & [Docker](#docker).
@@ -59,16 +59,10 @@ We have deployed an example bound to a free Suno account, so it has daily usage 
 
 ![get cookie](https://github.com/gcui-art/suno-api/blob/main/public/get-cookie-demo.gif)
 
-### 2. Register on 2Captcha and top up your balance
-[2Captcha](https://2captcha.com/about) is a paid CAPTCHA solving service that uses real workers to solve the CAPTCHA and has high accuracy. It is needed because of Suno constantly requesting hCaptcha solving that currently isn't possible for free by any means.
+### 2. Complete the Suno challenge
+When generation triggers a challenge, the local API opens a visible browser window. Complete the hCaptcha challenge in that window and leave it open until the request resumes.
 
-[Create](https://2captcha.com/auth/register?userType=customer) a new 2Captcha account, [top up](https://2captcha.com/pay) your balance and [get your API key](https://2captcha.com/enterpage#recognition).
-
-> [!NOTE]
-> If you are located in Russia or Belarus, use the [ruCaptcha](https://rucaptcha.com) interface instead of 2Captcha. It's the same service, but it supports payments from those countries.
-
-> [!TIP]
-> If you want as few CAPTCHAs as possible, it is recommended to use a macOS system. macOS systems usually get fewer CAPTCHAs than Linux and Windows—this is due to its unpopularity in the web scraping industry. Running suno-api on Windows and Linux will work, but in some cases, you could get a pretty large number of CAPTCHAs.
+The verification window uses the same signed-in Suno session as the API. Keep the browser session active until the generation request has resumed.
 
 ### 3. Clone and deploy this project
 
@@ -102,18 +96,20 @@ docker compose build && docker compose up
 - If you’re running this locally, be sure to add the following to your `.env` file:
 #### Environment variables
 - `SUNO_COOKIE` — the `Cookie` header you obtained in the first step.
-- `TWOCAPTCHA_KEY` — your 2Captcha API key from the second step.
+- `TWOCAPTCHA_KEY` — only used by the legacy solver path when `MANUAL_CAPTCHA=false`; leave empty for the default manual flow.
 - `BROWSER` — the name of the browser that is going to be used to solve the CAPTCHA. Only `chromium` and `firefox` supported.
 - `BROWSER_GHOST_CURSOR` — use ghost-cursor-playwright to simulate smooth mouse movements. Please note that it doesn't seem to make any difference in the rate of CAPTCHAs, so you can set it to `false`. Retained for future testing.
 - `BROWSER_LOCALE` — the language of the browser. Using either `en` or `ru` is recommended, since those have the most workers on 2Captcha. [List of supported languages](https://2captcha.com/2captcha-api#language)
-- `BROWSER_HEADLESS` — run the browser without the window. You probably want to set this to `true`.
+- `BROWSER_HEADLESS` — run the browser without the window. Manual verification forces a visible window.
+- `MANUAL_CAPTCHA` — `true` (default) uses manual verification and supports `/api/challenge/progress`; set to `false` only if you explicitly need the legacy solver path.
 ```bash
 SUNO_COOKIE=<…>
-TWOCAPTCHA_KEY=<…>
+TWOCAPTCHA_KEY=
 BROWSER=chromium
 BROWSER_GHOST_CURSOR=false
 BROWSER_LOCALE=en
 BROWSER_HEADLESS=true
+MANUAL_CAPTCHA=true
 ```
 
 ### 5. Run suno-api
