@@ -204,11 +204,65 @@ class SunoApi {
   }
 
   private async captchaRequired(): Promise<boolean> {
-    const resp = await this.client.post(`${SunoApi.BASE_URL}/api/c/check`, {
-      ctype: 'generation'
+    return (await this.captchaCheck()).required;
+  }
+
+  /**
+   * Full captcha check: required flag + which captcha system Suno wants.
+   * Suno's /api/c/check returns captcha_version:
+   *   1 = hCaptcha (invisible widget via Suno's first-party enterprise endpoint)
+   *   2 = Cloudflare Turnstile
+   */
+  private async captchaCheck(): Promise<{ required: boolean; version: 1 | 2 }> {
+    try {
+      const resp = await this.client.post(`${SunoApi.BASE_URL}/api/c/check`, {
+        ctype: 'generation'
+      });
+      const version: 1 | 2 = resp.data?.captcha_version === 2 ? 2 : 1;
+      logger.info(`captcha check: required=${resp.data?.required}, version=${version}`);
+      return { required: !!resp.data?.required, version };
+    } catch (err) {
+      logger.warn(`captcha check failed: ${err} — assuming required, v1`);
+      return { required: true, version: 1 };
+    }
+  }
+
+  /**
+   * Solve hCaptcha via 2Captcha — no browser needed.
+   * Suno currently gates generation with hCaptcha (captcha_version 1), rendered
+   * invisibly via their first-party endpoint. Token validation is sitekey-based,
+   * so a standard 2Captcha solve is accepted.
+   * Sitekey recovered from the suno.com/create frontend bundle (Aug 2026).
+   */
+  private static HCAPTCHA_SITEKEY = 'd65453de-3f1a-4aac-9366-a0f06e52b2ce';
+  private static HCAPTCHA_PAGEURL = 'https://suno.com/create';
+
+  private async solveHCaptchaDirect(): Promise<string | null> {
+    logger.info('Solving hCaptcha via 2Captcha (no browser)...');
+    const startTime = Date.now();
+    const result = await this.solver.hcaptcha({
+      sitekey: SunoApi.HCAPTCHA_SITEKEY,
+      pageurl: SunoApi.HCAPTCHA_PAGEURL,
+      invisible: 1,
     });
-    logger.info(resp.data);
-    return resp.data.required;
+    logger.info(`hCaptcha solved by 2Captcha in ${((Date.now() - startTime) / 1000).toFixed(1)}s`);
+    return result.data;
+  }
+
+  /**
+   * Solve Cloudflare Turnstile via 2Captcha — used when captcha_version is 2.
+   */
+  private static TURNSTILE_SITEKEY = '0x4AAAAAADI7xDNyj-3LcIbi';
+
+  private async solveTurnstileDirect(): Promise<string | null> {
+    logger.info('Solving Turnstile via 2Captcha (no browser)...');
+    const startTime = Date.now();
+    const result = await this.solver.cloudflareTurnstile({
+      sitekey: SunoApi.TURNSTILE_SITEKEY,
+      pageurl: SunoApi.HCAPTCHA_PAGEURL,
+    });
+    logger.info(`Turnstile solved by 2Captcha in ${((Date.now() - startTime) / 1000).toFixed(1)}s`);
+    return result.data;
   }
 
   /**
@@ -301,13 +355,39 @@ class SunoApi {
   }
 
   /**
-   * Checks for CAPTCHA verification and solves the CAPTCHA if needed
+   * Checks for CAPTCHA verification and solves the CAPTCHA if needed.
+   * Picks the solver based on Suno's captcha_version (1 = hCaptcha, 2 = Turnstile)
+   * and returns the provider id for the payload's token_provider field.
+   * @returns token + provider. If no verification is required, both are null
+   */
+  public async getCaptcha(): Promise<{ token: string | null; provider: 1 | 2 | null }> {
+    const check = await this.captchaCheck();
+    if (!check.required)
+      return { token: null, provider: null };
+
+    // 2Captcha sitekey solver first (no browser, no bot detection)
+    try {
+      if (check.version === 1) {
+        const token = await this.solveHCaptchaDirect();
+        if (token) return { token, provider: 1 };
+      } else {
+        const token = await this.solveTurnstileDirect();
+        if (token) return { token, provider: 2 };
+      }
+      logger.warn('2Captcha solver returned null — falling back to browser method');
+    } catch (e) {
+      logger.warn(`2Captcha solver failed: ${e} — falling back to browser method`);
+    }
+
+    const token = await this.solveCaptchaBrowser();
+    return { token, provider: token ? check.version : null };
+  }
+
+  /**
+   * Browser-based CAPTCHA solving (original flow).
    * @returns {string|null} hCaptcha token. If no verification is required, returns null
    */
-  public async getCaptcha(): Promise<string|null> {
-    if (!await this.captchaRequired())
-      return null;
-
+  private async solveCaptchaBrowser(): Promise<string|null> {
     logger.info('CAPTCHA required. Launching browser...')
     const browser = await this.launchBrowser();
     const page = await browser.newPage();
@@ -412,7 +492,7 @@ class SunoApi {
       throw e;
     });
     return (new Promise((resolve, reject) => {
-      page.route('**/api/generate/v2/**', async (route: any) => {
+      page.route('**/api/generate/v2*/**', async (route: any) => {
         try {
           logger.info('hCaptcha token received. Closing browser');
           route.abort();
@@ -558,6 +638,7 @@ class SunoApi {
     continue_at?: number
   ): Promise<AudioInfo[]> {
     await this.keepAlive();
+    const captcha = await this.getCaptcha();
     const payload: any = {
       make_instrumental: make_instrumental,
       mv: model || DEFAULT_MODEL,
@@ -566,7 +647,15 @@ class SunoApi {
       continue_at: continue_at,
       continue_clip_id: continue_clip_id,
       task: task,
-      token: await this.getCaptcha()
+      token: captcha.token,
+      token_provider: captcha.provider,
+      transaction_uuid: randomUUID(),
+      metadata: {
+        web_client_pathname: '/create',
+        create_mode: isCustom ? 'custom' : 'simple',
+        create_session_token: randomUUID(),
+        disable_volume_normalization: false
+      }
     };
     if (isCustom) {
       payload.tags = tags;
@@ -587,19 +676,27 @@ class SunoApi {
             make_instrumental: make_instrumental,
             wait_audio: wait_audio,
             negative_tags: negative_tags,
-            payload: payload
+            payload: { ...payload, token: captcha.token ? '<redacted>' : null }
           },
           null,
           2
         )
     );
-    const response = await this.client.post(
-      `${SunoApi.BASE_URL}/api/generate/v2/`,
-      payload,
-      {
-        timeout: 10000 // 10 seconds timeout
+    let response;
+    try {
+      response = await this.client.post(
+        `${SunoApi.BASE_URL}/api/generate/v2-web/`,
+        payload,
+        {
+          timeout: 10000 // 10 seconds timeout
+        }
+      );
+    } catch (err) {
+      if (axios.isAxiosError(err) && err.response) {
+        logger.error(`Generate failed: HTTP ${err.response.status} — ${JSON.stringify(err.response.data)}`);
       }
-    );
+      throw err;
+    }
     if (response.status !== 200) {
       throw new Error('Error response:' + response.statusText);
     }
