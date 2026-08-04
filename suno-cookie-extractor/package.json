@@ -8,7 +8,6 @@
     "start": "node get-cookie.mjs --save",
     "get-cookie": "node get-cookie.mjs --save",
     "verify-cookie": "node verify-cookie.mjs",
-    "postinstall": "playwright-core install chromium",
     "install-browsers": "playwright-core install chromium"
   },
   "dependencies": {

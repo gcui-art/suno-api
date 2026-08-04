@@ -44,8 +44,10 @@ const SUNO_COOKIE_URLS = [
   'https://auth.suno.com',
   'https://clerk.suno.com',
 ];
+// Only real identity-provider / sign-in surfaces. Keep this narrow:
+// broad tokens like "oauth" match post-login Suno URLs and leave the script stuck.
 const AUTH_FLOW_URL_PATTERN =
-  /accounts\.google\.|google\.com\/signin|appleid\.apple\.com|login\.microsoftonline\.com|facebook\.com|github\.com\/login|oauth|sso|sign-in|signin|challenge|2fa|totp|verify|auth\.suno\.com/i;
+  /accounts\.google\.|google\.com\/(?:signin|o\/oauth2)|appleid\.apple\.com|login\.microsoftonline\.com|facebook\.com\/login|github\.com\/login|accounts\.youtube\.com/i;
 const BROWSER_PROFILE_DIR = path.join(__dirname, '.browser-profile');
 
 function log(msg, color = '') {
@@ -66,6 +68,10 @@ function parseArgs(argv) {
     verify: envFlagEnabled('SUNO_VERIFY', true),
     manual: envFlagEnabled('SUNO_MANUAL', false),
     persistProfile: envFlagEnabled('SUNO_PERSIST_PROFILE', true),
+    // Prefer system Chrome so npm install does not need a 100MB+ browser download.
+    // Use --browser chromium (after npm run install-browsers) for Playwright's bundle.
+    channel: process.env.SUNO_BROWSER_CHANNEL || 'chrome',
+    executablePath: process.env.SUNO_CHROME_PATH || process.env.CHROME_PATH || '',
     headless: false,
     timeoutMs: 5 * 60 * 1000,
     help: false,
@@ -83,6 +89,14 @@ function parseArgs(argv) {
     else if (arg === '--email' || arg === '-e') opts.email = argv[++i] || '';
     else if (arg === '--password' || arg === '-p') opts.password = argv[++i] || '';
     else if (arg === '--timeout') opts.timeoutMs = Number(argv[++i]) * 1000;
+    else if (arg === '--browser') {
+      const value = (argv[++i] || '').toLowerCase();
+      if (value === 'chromium' || value === 'bundled') opts.channel = '';
+      else opts.channel = value; // chrome | chrome-beta | msedge | ...
+    } else if (arg === '--chrome-path' || arg === '--executable-path') {
+      opts.executablePath = argv[++i] || '';
+      opts.channel = '';
+    }
   }
 
   return opts;
@@ -106,9 +120,14 @@ function showHelp() {
   log('  --no-verify               Skip Suno API auth check after extraction');
   log('  -m, --manual              Manual sign-in only (use for Google/Apple SSO)');
   log('  --no-profile              Use a fresh browser profile instead of a saved one');
+  log('  --browser <name>          chrome (default) | chromium | msedge | chrome-beta');
+  log('  --chrome-path <path>      Explicit browser binary (skips channel lookup)');
   log('  --headless                Run browser without a visible window');
   log('  --timeout <seconds>       Max wait time (default: 300)');
   log('  -h, --help                Show this help');
+  log('');
+  log('By default uses your installed Google Chrome (no Playwright browser download).');
+  log('For bundled Chromium: npm run install-browsers && npm start -- --browser chromium');
   log('');
   log('If email/password are omitted, you will be prompted and can also log in');
   log('manually in the opened browser window.');
@@ -179,16 +198,46 @@ function isSunoAppUrl(url) {
   }
 }
 
+function isSunoSignedInAppUrl(url) {
+  try {
+    const u = new URL(url);
+    if (u.hostname === 'auth.suno.com') return false;
+    if (!(u.hostname === 'suno.com' || u.hostname.endsWith('.suno.com'))) return false;
+    return !/\/(sign-in|signin|login)(?:\/|$)/i.test(u.pathname);
+  } catch {
+    return false;
+  }
+}
+
 function isAuthFlowUrl(url) {
-  if (!url || url === 'about:blank') return false;
-  return AUTH_FLOW_URL_PATTERN.test(url) || !isSunoAppUrl(url);
+  if (!url || url === 'about:blank' || url.startsWith('chrome')) return false;
+  try {
+    const u = new URL(url);
+    if (u.hostname === 'auth.suno.com') return true;
+    if (u.hostname === 'suno.com' || u.hostname.endsWith('.suno.com')) {
+      return /\/(sign-in|signin|login)(?:\/|$)/i.test(u.pathname);
+    }
+  } catch {
+    return false;
+  }
+  // Third-party IdP pages only — do not treat every non-Suno URL as auth.
+  return AUTH_FLOW_URL_PATTERN.test(url);
 }
 
 function getAuthFlowState(context) {
   const pages = context.pages().filter((p) => !p.isClosed());
   const activeUrls = pages.map((p) => p.url()).filter(Boolean);
-  const authUrl = activeUrls.find((url) => isAuthFlowUrl(url));
 
+  // If any tab is already on the Suno app, do not block on leftover Google/OAuth tabs.
+  if (activeUrls.some((url) => isSunoSignedInAppUrl(url))) {
+    return {
+      inAuth: false,
+      url: activeUrls.find((url) => isSunoSignedInAppUrl(url)) || activeUrls[0] || '',
+      pageCount: pages.length,
+    };
+  }
+
+  const authUrl = activeUrls.find((url) => isAuthFlowUrl(url));
   return {
     inAuth: Boolean(authUrl),
     url: authUrl || activeUrls[0] || '',
@@ -197,7 +246,7 @@ function getAuthFlowState(context) {
 }
 
 function describeAuthUrl(url) {
-  if (/accounts\.google\.|google\.com\/signin/i.test(url)) return 'Google sign-in';
+  if (/accounts\.google\.|google\.com\/(?:signin|o\/oauth2)/i.test(url)) return 'Google sign-in';
   if (/appleid\.apple\.com/i.test(url)) return 'Apple sign-in';
   if (/login\.microsoftonline\.com/i.test(url)) return 'Microsoft sign-in';
   if (/auth\.suno\.com|sign-in|signin/i.test(url)) return 'Suno sign-in';
@@ -470,6 +519,10 @@ async function waitForAuthenticatedCookie(page, context, capture, timeoutMs) {
 
     if (authState.inAuth) {
       authFlowSeen = true;
+      // Cookies may already be valid even while an IdP tab is still open.
+      const early = await tryResolveAuthenticatedCookie(page, capture);
+      if (early) return early;
+
       if (!announcedAuthWait) {
         log(
           `\n${describeAuthUrl(authState.url)} detected — complete SSO/2FA in the browser.`,
@@ -521,29 +574,70 @@ async function waitForAuthenticatedCookie(page, context, capture, timeoutMs) {
   );
 }
 
+function browserLaunchOptions(opts, launchArgs) {
+  const options = {
+    headless: opts.headless,
+    args: launchArgs,
+  };
+
+  if (opts.executablePath) {
+    options.executablePath = opts.executablePath;
+    log(`Using browser binary: ${opts.executablePath}`, c.dim);
+  } else if (opts.channel) {
+    options.channel = opts.channel;
+    log(`Using system browser channel: ${opts.channel}`, c.dim);
+  } else {
+    log('Using Playwright bundled Chromium', c.dim);
+  }
+
+  return options;
+}
+
 async function launchBrowserContext(opts) {
   const launchArgs = [
     '--disable-blink-features=AutomationControlled',
     '--no-sandbox',
     '--disable-dev-shm-usage',
   ];
+  const browserOpts = browserLaunchOptions(opts, launchArgs);
 
   if (opts.persistProfile) {
     log(`Using saved browser profile at ${BROWSER_PROFILE_DIR}`, c.dim);
-    const context = await chromium.launchPersistentContext(BROWSER_PROFILE_DIR, {
-      headless: opts.headless,
-      viewport: { width: 1280, height: 900 },
-      locale: 'en-US',
-      args: launchArgs,
-    });
-    const page = context.pages()[0] || (await context.newPage());
-    return { browser: null, context, page, persistent: true };
+    try {
+      const context = await chromium.launchPersistentContext(BROWSER_PROFILE_DIR, {
+        ...browserOpts,
+        viewport: { width: 1280, height: 900 },
+        locale: 'en-US',
+      });
+      const page = context.pages()[0] || (await context.newPage());
+      return { browser: null, context, page, persistent: true };
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      if (/Executable doesn't exist|Failed to launch|browserType\.launch/i.test(msg)) {
+        throw new Error(
+          `${msg}\n\nHint: install Google Chrome, or run:\n` +
+            `  cd suno-cookie-extractor && npm run install-browsers\n` +
+            `  npm start -- --browser chromium --save`
+        );
+      }
+      throw err;
+    }
   }
 
-  const browser = await chromium.launch({
-    headless: opts.headless,
-    args: launchArgs,
-  });
+  let browser;
+  try {
+    browser = await chromium.launch(browserOpts);
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    if (/Executable doesn't exist|Failed to launch|browserType\.launch/i.test(msg)) {
+      throw new Error(
+        `${msg}\n\nHint: install Google Chrome, or run:\n` +
+          `  cd suno-cookie-extractor && npm run install-browsers\n` +
+          `  npm start -- --browser chromium --save`
+      );
+    }
+    throw err;
+  }
   const context = await browser.newContext({
     viewport: { width: 1280, height: 900 },
     locale: 'en-US',

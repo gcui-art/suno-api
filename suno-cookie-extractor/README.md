@@ -20,8 +20,17 @@ npm run get-cookie -- --save
 Or from **this folder**:
 
 ```bash
-npm install   # first time only
+npm install   # first time only (uses system Chrome by default — no browser download)
 npm start -- --save
+```
+
+The tool defaults to your installed **Google Chrome**, so `npm install` does not download Playwright’s Chromium bundle (which often hangs when several installs race on the same cache lock).
+
+If you prefer bundled Chromium instead:
+
+```bash
+npm run install-browsers
+npm start -- --browser chromium --save
 ```
 
 The `--save` flag writes `SUNO_COOKIE` to `../.env` (the main app config file).
@@ -45,6 +54,8 @@ The `--save` flag writes `SUNO_COOKIE` to `../.env` (the main app config file).
 | `-m`, `--manual` | Manual sign-in only — skips email/password prompts; use for Google/Apple SSO or 2FA |
 | `-e`, `--email` | Suno account email |
 | `-p`, `--password` | Suno account password |
+| `--browser <name>` | `chrome` (default), `chromium`, `msedge`, `chrome-beta` |
+| `--chrome-path <path>` | Explicit browser binary path |
 | `--headless` | Run without a visible browser window |
 | `--timeout <sec>` | Max wait time (default: 300) |
 | `-h`, `--help` | Show help |
@@ -88,7 +99,8 @@ You should get a JSON response with `credits_left` — not an auth error.
 | Timed out waiting for cookie | Make sure you finished signing in. Run again and complete login in the browser. |
 | Automated sign-in failed | Re-run with `--manual` and sign in yourself (Google/Apple SSO is fine). The script waits and captures the cookie when you're done. |
 | Cookie saved but API fails | Cookies expire. Re-run with `--save` to refresh. |
-| Browser doesn't open | Install deps: `cd suno-cookie-extractor && npm install` |
+| Browser doesn't open | Install Google Chrome, or `npm run install-browsers` then `--browser chromium` |
+| `npm install` hangs on Chromium download | Fixed: postinstall no longer downloads browsers. Kill stuck `playwright*install` processes and remove `~/Library/Caches/ms-playwright/__dirlock` if needed. |
 
 ## Notes
 
