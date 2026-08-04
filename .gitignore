@@ -37,3 +37,7 @@ yarn-error.log*
 next-env.d.ts
 
 .idea
+
+# cookie extractor browser profile (session data; do not commit)
+/suno-cookie-extractor/.browser-profile
+/suno-cookie-extractor/node_modules

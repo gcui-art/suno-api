@@ -49,6 +49,22 @@ We have deployed an example bound to a free Suno account, so it has daily usage 
 
 ### 1. Obtain the cookie of your Suno account
 
+**Option A — automated (recommended)**
+
+From the project root (after `npm install` in `suno-cookie-extractor` once):
+
+```bash
+npm run get-cookie -- --save
+# Manual sign-in (Google/Apple SSO, 2FA):
+npm run get-cookie -- --manual --save
+# Verify a saved cookie:
+npm run verify-cookie
+```
+
+This opens a browser, captures the Clerk cookie, and can write `SUNO_COOKIE` to `.env`. See [`suno-cookie-extractor/README.md`](./suno-cookie-extractor/README.md) for all options.
+
+**Option B — manual**
+
 1. Head over to [suno.com/create](https://suno.com/create) using your browser.
 2. Open up the browser console: hit `F12` or access the `Developer Tools`.
 3. Navigate to the `Network` tab.
