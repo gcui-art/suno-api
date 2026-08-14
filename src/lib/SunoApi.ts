@@ -286,6 +286,23 @@ class SunoApi {
         }
       }
       return resp;
+    }, async (error: any) => {
+      const config = error?.config;
+      const status = error?.response?.status;
+      const method = (config?.method || '').toLowerCase();
+      const retried = (config as any)?._retry429 ?? 0;
+      if (status === 429 && config && method === 'get' && retried < 2) {
+        (config as any)._retry429 = retried + 1;
+        const retryAfter = Number(error.response?.headers?.['retry-after']);
+        const delayMs =
+          (Number.isFinite(retryAfter) && retryAfter > 0
+            ? retryAfter * 1000
+            : Math.pow(2, retried + 1) * 1000) + Math.random() * 1000;
+        logger.info(`429 backoff retry #${retried + 1} in ${Math.round(delayMs)}ms`);
+        await new Promise(r => setTimeout(r, delayMs));
+        return this.client.request(config);
+      }
+      throw error;
     })
   }
 
@@ -345,6 +362,17 @@ class SunoApi {
   public async keepAlive(isWait?: boolean): Promise<void> {
     if (!this.sid) {
       throw new Error('Session ID is not set. Cannot renew token.');
+    }
+    // Token 未临近过期时跳过 Clerk /touch（此前每次轮询都刷新，上游请求被放大 3 倍）
+    if (this.currentToken) {
+      try {
+        const payload = JSON.parse(
+          Buffer.from(this.currentToken.split('.')[1], 'base64url').toString()
+        );
+        if (payload.exp && payload.exp * 1000 - Date.now() > 30_000) {
+          return;
+        }
+      } catch {}
     }
     logger.info('KeepAlive...\n');
     const touchUrl = this.buildClerkUrl(`/v1/client/sessions/${this.sid}/touch`);
@@ -1095,7 +1123,11 @@ class SunoApi {
       let lyricsResponse = await this.client.get(
         `${SunoApi.BASE_URL}/api/generate/lyrics/${generateId}`
       );
+      let lyricsAttempts = 0;
       while (lyricsResponse?.data?.status !== 'complete') {
+        if (lyricsResponse?.data?.status === 'error' || ++lyricsAttempts > 60) {
+          throw new Error(`Lyrics polling aborted (status=${lyricsResponse?.data?.status})`);
+        }
         await sleep(2); // Wait for 2 seconds before polling again
         lyricsResponse = await this.client.get(
           `${SunoApi.BASE_URL}/api/generate/lyrics/${generateId}`
@@ -1138,7 +1170,11 @@ class SunoApi {
       let lyricsResponse = await this.client.get(
         `${SunoApi.BASE_URL}/api/generate/lyrics/${mashupId}`
       );
+      let mashupAttempts = 0;
       while (lyricsResponse?.data?.status !== 'complete') {
+        if (lyricsResponse?.data?.status === 'error' || ++mashupAttempts > 60) {
+          throw new Error(`Mashup lyrics polling aborted (status=${lyricsResponse?.data?.status})`);
+        }
         await sleep(2);
         lyricsResponse = await this.client.get(
           `${SunoApi.BASE_URL}/api/generate/lyrics/${mashupId}`
