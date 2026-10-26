@@ -1,3 +1,4 @@
+import { StudioApi, StudioError } from '@/lib/StudioApi';
 import axios, { AxiosInstance } from 'axios';
 import UserAgent from 'user-agents';
 import pino from 'pino';
@@ -125,6 +126,31 @@ class SunoApi {
     await this.getAuthToken();
     await this.keepAlive();
     return this;
+  }
+
+  /** Experimental Studio methods share this instance's authentication/cache. */
+  public studio(): StudioApi {
+    return new StudioApi(async (apiPath, method, data) => {
+      try {
+        await this.keepAlive();
+        const response = await this.client.request({
+          url: `https://suno.com/a/api/${apiPath}`, method, data,
+          headers: { Origin: 'https://suno.com', Referer: 'https://suno.com/studio' },
+          timeout: 45000, maxRedirects: 0
+        });
+        return response.data;
+      } catch (error) {
+        // Axios errors contain cookies, tokens and payloads. Never propagate/log them.
+        const billable = method === 'POST' && ['generate/v2-web/', 'studio/render-state'].includes(apiPath);
+        throw new StudioError('STUDIO_REQUEST_FAILED', 502, billable);
+      }
+    }, () => {
+      try {
+        const claims = JSON.parse(Buffer.from(this.currentToken!.split('.')[1], 'base64url').toString());
+        if (typeof claims.sub === 'string' && claims.sub) return claims.sub;
+      } catch { /* Fail closed on an unavailable account identity. */ }
+      throw new StudioError('ACCOUNT_IDENTITY_UNAVAILABLE', 401);
+    });
   }
 
   /**

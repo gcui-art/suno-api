@@ -731,6 +731,214 @@
           }
         }
       }
+    },
+    "/api/studio/project": {
+      "get": {
+        "summary": "Read an owned Studio project",
+        "tags": [
+          "Studio (experimental)"
+        ],
+        "description": "See docs/studio.md. Asynchronous stages; no automatic retries or CAPTCHA solving.",
+        "responses": {
+          "200": {
+            "description": "Provider stage result; does not imply media is ready"
+          },
+          "400": {
+            "description": "Invalid input, ownership, source readiness or CAPTCHA required"
+          },
+          "502": {
+            "description": "Provider failure; generation/render acceptance may be unknown"
+          }
+        },
+        "parameters": [
+          {
+            "in": "query",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ]
+      }
+    },
+    "/api/studio/status": {
+      "get": {
+        "summary": "Poll Studio source and render statuses",
+        "tags": [
+          "Studio (experimental)"
+        ],
+        "description": "See docs/studio.md. Asynchronous stages; no automatic retries or CAPTCHA solving.",
+        "responses": {
+          "200": {
+            "description": "Provider stage result; does not imply media is ready"
+          },
+          "400": {
+            "description": "Invalid input, ownership, source readiness or CAPTCHA required"
+          },
+          "502": {
+            "description": "Provider failure; generation/render acceptance may be unknown"
+          }
+        },
+        "parameters": [
+          {
+            "in": "query",
+            "name": "ids",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ]
+      }
+    },
+    "/api/studio/generate": {
+      "post": {
+        "summary": "Submit one Studio lyrics/style generation (experimental)",
+        "tags": [
+          "Studio (experimental)"
+        ],
+        "description": "See docs/studio.md. Asynchronous stages; no automatic retries or CAPTCHA solving.",
+        "responses": {
+          "200": {
+            "description": "Provider stage result; does not imply media is ready"
+          },
+          "400": {
+            "description": "Invalid input, ownership, source readiness or CAPTCHA required"
+          },
+          "502": {
+            "description": "Provider failure; generation/render acceptance may be unknown"
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "project_id": {
+                    "type": "string",
+                    "format": "uuid"
+                  },
+                  "prompt": {
+                    "type": "string"
+                  },
+                  "tags": {
+                    "type": "string"
+                  },
+                  "title": {
+                    "type": "string"
+                  },
+                  "model": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "project_id",
+                  "prompt",
+                  "tags"
+                ]
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/studio/export": {
+      "post": {
+        "summary": "Render a complete source using current Studio state (experimental)",
+        "tags": [
+          "Studio (experimental)"
+        ],
+        "description": "See docs/studio.md. Asynchronous stages; no automatic retries or CAPTCHA solving.",
+        "responses": {
+          "200": {
+            "description": "Provider stage result; does not imply media is ready"
+          },
+          "400": {
+            "description": "Invalid input, ownership, source readiness or CAPTCHA required"
+          },
+          "502": {
+            "description": "Provider failure; generation/render acceptance may be unknown"
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "project_id": {
+                    "type": "string",
+                    "format": "uuid"
+                  },
+                  "clip_id": {
+                    "type": "string",
+                    "format": "uuid"
+                  },
+                  "duration_seconds": {
+                    "type": "number",
+                    "exclusiveMinimum": true,
+                    "maximum": 480,
+                    "minimum": 0
+                  },
+                  "state": {
+                    "type": "object",
+                    "description": "Current Studio state with an audio track/clip schema template"
+                  },
+                  "title": {
+                    "type": "string"
+                  },
+                  "lyrics": {
+                    "type": "string"
+                  },
+                  "tags": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "project_id",
+                  "clip_id",
+                  "duration_seconds",
+                  "state"
+                ]
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/studio/download": {
+      "get": {
+        "summary": "Prepare a signed M4A export URL; download without Suno credentials",
+        "tags": [
+          "Studio (experimental)"
+        ],
+        "description": "See docs/studio.md. Asynchronous stages; no automatic retries or CAPTCHA solving.",
+        "responses": {
+          "200": {
+            "description": "Provider stage result; does not imply media is ready"
+          },
+          "400": {
+            "description": "Invalid input, ownership, source readiness or CAPTCHA required"
+          },
+          "502": {
+            "description": "Provider failure; generation/render acceptance may be unknown"
+          }
+        },
+        "parameters": [
+          {
+            "in": "query",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ]
+      }
     }
   },
   "components": {

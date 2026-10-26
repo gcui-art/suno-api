@@ -166,6 +166,13 @@ You can also specify the cookies in the `Cookie` header of your request, overrid
 For more detailed documentation, please check out the demo site:
 [suno.gcui.ai/docs](https://suno.gcui.ai/docs)
 
+### Experimental Studio support
+
+Studio generation, status polling, full-song export and prepared download URLs share
+the existing session. See [Studio API](docs/studio.md) for endpoints, current-state
+templates, asynchronous polling, error handling and account requirements. Use the
+existing aligned-lyrics route with the exported recording ID.
+
 ## API Integration Code Examples
 
 ### Python
