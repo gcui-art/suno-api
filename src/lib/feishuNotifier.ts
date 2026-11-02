@@ -2,6 +2,18 @@ import axios, { AxiosInstance } from 'axios';
 import { createHmac } from 'node:crypto';
 import { createReadStream } from 'node:fs';
 import FormData from 'form-data';
+import pino from 'pino';
+
+const logger = pino();
+
+function describeFeishuError(error: unknown): string {
+  if (axios.isAxiosError(error)) {
+    const data = error.response?.data as { code?: number; msg?: string } | undefined;
+    if (data?.msg) return `${data.code ?? error.response?.status}: ${data.msg}`;
+    return error.message;
+  }
+  return error instanceof Error ? error.message : String(error);
+}
 
 const TENANT_TOKEN_URL = 'https://open.feishu.cn/open-apis/auth/v3/tenant_access_token/internal';
 const IMAGE_UPLOAD_URL = 'https://open.feishu.cn/open-apis/im/v1/images';
@@ -55,9 +67,15 @@ export class FeishuNotifier {
     }
 
     await this.sendText(`${notification.title}\n${notification.text}`);
-    const imageKey = await this.uploadImage(notification.imagePath);
-    if (imageKey) {
-      await this.sendImage(imageKey);
+    // 图片走 im/v1/images，需要自建应用开启「机器人」能力；
+    // 失败时只降级掉截图，不能让文本通知一起被判为失败。
+    try {
+      const imageKey = await this.uploadImage(notification.imagePath);
+      if (imageKey) {
+        await this.sendImage(imageKey);
+      }
+    } catch (error) {
+      logger.warn(`Feishu image notification skipped: ${describeFeishuError(error)}`);
     }
   }
 
