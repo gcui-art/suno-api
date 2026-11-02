@@ -1,15 +1,14 @@
 import pino from 'pino';
-import { Browser, BrowserContext, chromium, Locator, Page, Request } from 'playwright';
+import { Browser, BrowserContext, chromium, Locator, Page } from 'playwright';
 import path from 'node:path';
-import { YesCaptchaAction, YesCaptchaClient } from '@/lib/yesCaptchaClient';
 import { createMatchingChromiumUserAgent } from '@/lib/browserFingerprint';
-import { sleep } from '@/lib/utils';
+import { applySunoSessionToken } from '@/lib/sunoAuthCookies';
+import { collectSunoApiCookies } from '@/lib/sunoBrowserRecovery';
 import {
   startCaptchaRequestLoggingAfterClick
 } from '@/lib/sunoCaptchaNetworkLogging';
 import { SunoCaptchaDebugSession } from '@/lib/sunoCaptchaDebugSession';
 import { closeKnownPopups, describePointerBlocker, waitForPointerTarget } from '@/lib/sunoPopupHandler';
-import { saveCaptchaChallengeSnapshot } from '@/lib/captchaChallengeSnapshot';
 import {
   CREATE_SONG_BUTTON_SELECTOR,
   PROMPT_TEXTAREA_SELECTORS,
@@ -23,27 +22,77 @@ import {
   SunoGeneratePayload
 } from '@/lib/sunoCaptchaGenerateCapture';
 import { saveCaptchaSnapshotAfterDelay } from '@/lib/sunoCaptchaSnapshotTimer';
-import { installTurnstileChallengeHook, solveTurnstileChallenges } from '@/lib/sunoTurnstileChallenge';
+import { installTurnstileChallengeHook, TURNSTILE_HOOK_KEY } from '@/lib/sunoTurnstileChallenge';
+import { SunoCaptchaManualInterventionError } from '@/lib/sunoCaptchaErrors';
 
 const logger = pino();
 const SUNO_CREATE_URL = 'https://suno.com/create';
 const CAPTCHA_DEBUG_SAVE = process.env.CAPTCHA_DEBUG_SAVE === 'true';
-const CAPTCHA_CHALLENGE_STABLE_WAIT_MS = 10_000;
+const CAPTCHA_DETECTION_INTERVAL_MS = 500;
+const CAPTCHA_CAPTURE_TIMEOUT_MS = 60_000;
 const RECORD_VIDEO_DIR = path.join(process.cwd(), 'logs', 'captcha-videos');
-const HCAPTCHA_IMAGE_RE = /^https:\/\/(?:img[a-zA-Z0-9]*\.hcaptcha\.com|hcaptcha-imgs-prod\.suno\.com)\/.*$/;
 const INVALID_COOKIE_RE = /[\x00-\x1f\x7f;,"]/;
+const configuredMaxConcurrent = Number.parseInt(
+  process.env.SUNO_CAPTCHA_MAX_CONCURRENT ?? '2',
+  10
+);
+const MAX_CONCURRENT_CAPTCHA_SOLVES = Number.isFinite(configuredMaxConcurrent) && configuredMaxConcurrent > 0
+  ? configuredMaxConcurrent
+  : 2;
+let activeCaptchaSolves = 0;
+
+function headedMode(): boolean {
+  if (process.env.BROWSER_HEADLESS === 'true') return false;
+  if (process.env.BROWSER_HEADLESS === 'false') {
+    if (!process.env.DISPLAY && !process.env.WAYLAND_DISPLAY) {
+      throw new Error('BROWSER_HEADLESS=false requires DISPLAY or WAYLAND_DISPLAY');
+    }
+    return true;
+  }
+  return false;
+}
+
 interface SunoCaptchaSolverOptions {
   cookies: Record<string, string | undefined>;
   currentToken?: string;
 }
 
+export class SunoCaptchaCapacityError extends Error {
+  public readonly statusCode = 503;
+
+  constructor(limit: number) {
+    super(`Suno captcha capacity reached (${limit} active); retry later`);
+    this.name = 'SunoCaptchaCapacityError';
+  }
+}
+
+export interface SunoCaptchaGenerationResult extends CaptchaGenerationResult {
+  cookies: Record<string, string>;
+}
+
 export class SunoCaptchaSolver {
-  private readonly yesCaptcha = new YesCaptchaClient(process.env.YESCAPTCHA_KEY ?? '');
   private generationSucceeded = false;
 
   constructor(private readonly options: SunoCaptchaSolverOptions) {}
 
-  public async generate(payload: SunoGeneratePayload): Promise<CaptchaGenerationResult> {
+  public async generate(payload: SunoGeneratePayload): Promise<SunoCaptchaGenerationResult> {
+    if (process.env.SUNO_SERVER_BROWSER_SOLVER !== 'true') {
+      throw new SunoCaptchaManualInterventionError();
+    }
+    if (activeCaptchaSolves >= MAX_CONCURRENT_CAPTCHA_SOLVES) {
+      throw new SunoCaptchaCapacityError(MAX_CONCURRENT_CAPTCHA_SOLVES);
+    }
+    activeCaptchaSolves += 1;
+    logger.info(`SunoCaptchaSolver: acquired browser slot (${activeCaptchaSolves}/${MAX_CONCURRENT_CAPTCHA_SOLVES})`);
+    try {
+      return await this.generateWithBrowser(payload);
+    } finally {
+      activeCaptchaSolves -= 1;
+      logger.info(`SunoCaptchaSolver: released browser slot (${activeCaptchaSolves}/${MAX_CONCURRENT_CAPTCHA_SOLVES})`);
+    }
+  }
+
+  private async generateWithBrowser(payload: SunoGeneratePayload): Promise<SunoCaptchaGenerationResult> {
     logger.info('SunoCaptchaSolver: launching browser');
     const browser = await this.launchBrowser();
     const browserUserAgent = createMatchingChromiumUserAgent(browser.version());
@@ -61,13 +110,14 @@ export class SunoCaptchaSolver {
       generateCapture = await installCaptchaGenerateCapture(
         page,
         payload,
-        logger
+        logger,
+        CAPTCHA_CAPTURE_TIMEOUT_MS
       );
       logger.info(`SunoCaptchaSolver: navigating to ${SUNO_CREATE_URL}`);
       await page.goto(SUNO_CREATE_URL, {
         referer: 'https://www.google.com/',
         waitUntil: 'domcontentloaded',
-        timeout: 0
+        timeout: 60_000
       });
       await this.waitForSunoReady(page);
       await this.triggerCaptcha(page);
@@ -76,13 +126,16 @@ export class SunoCaptchaSolver {
           () => debugSession.save(page, undefined, 'captcha-after-20s'));
       }
       await Promise.race([
-        this.waitForChallengeHandlers(page, abortController.signal),
+        this.waitForManualCaptcha(page, abortController.signal),
         generateCapture.result
       ]);
       logger.info('SunoCaptchaSolver: waiting for browser Generate response');
       const result = await generateCapture.result;
+      // 把浏览器里最新的登录态带回去，调用方会写回账号记录。
+      const cookies = collectSunoApiCookies(await context.cookies());
+      if (result.authorizationToken) applySunoSessionToken(cookies, result.authorizationToken);
       this.generationSucceeded = true;
-      return result;
+      return { ...result, cookies };
     } catch (error) {
       failure = error;
       throw error;
@@ -100,16 +153,14 @@ export class SunoCaptchaSolver {
         ? await debugSession.closeBrowserWithVideoLog(page, browser)
         : undefined;
       if (!CAPTCHA_DEBUG_SAVE) await browser.close();
-      if (CAPTCHA_DEBUG_SAVE && !this.generationSucceeded) {
-        await debugSession.notifyFailure(files, failure, videoPath);
-      }
+      if (!this.generationSucceeded) await debugSession.notifyFailure(files, failure, videoPath);
       logger.info('SunoCaptchaSolver: browser closed');
     }
   }
 
   private async launchBrowser(): Promise<Browser> {
     return chromium.launch({
-      headless: process.env.BROWSER_HEADLESS !== 'false',
+      headless: !headedMode(),
       args: [
         '--disable-blink-features=AutomationControlled',
         '--no-sandbox',
@@ -276,187 +327,36 @@ export class SunoCaptchaSolver {
     logger.info(`SunoCaptchaSolver: Create song button diagnostics ${JSON.stringify(diagnostics)}`);
   }
 
-  private async waitForChallengeHandlers(page: Page, signal: AbortSignal): Promise<never> {
-    const results = await Promise.allSettled([
-      solveTurnstileChallenges(
-        page,
-        signal,
-        (challenge, challengeSignal) =>
-          this.yesCaptcha.solveTurnstile(challenge.websiteURL, challenge.websiteKey, challengeSignal),
-        () => logger.info('SunoCaptchaSolver: delivered YesCaptcha Turnstile token to page')
-      ),
-      this.solveChallenges(page, signal)
-    ]);
-    const errors = results
-      .filter((result): result is PromiseRejectedResult => result.status === 'rejected')
-      .map((result) => result.reason);
-    for (const error of errors) {
-      logger.warn(`SunoCaptchaSolver: challenge handler ended: ${this.formatError(error)}`);
-    }
-    throw new AggregateError(errors, 'All captcha challenge handlers ended before token capture');
-  }
-
-  private async solveChallenges(page: Page, signal: AbortSignal): Promise<void> {
-    const frame = page.frameLocator('iframe[title*="hCaptcha"]');
-    const challenge = frame.locator('.challenge-container');
+  private async waitForManualCaptcha(page: Page, signal: AbortSignal): Promise<never> {
     while (!signal.aborted) {
-      await this.waitForVisibleChallenge(challenge);
-      if (CAPTCHA_DEBUG_SAVE) await this.saveChallengeSnapshot(page, challenge);
-      await this.waitForHcaptchaImages(page, signal);
-      logger.info('SunoCaptchaSolver: waiting 10s for hCaptcha challenge to stabilize');
-      await page.waitForTimeout(CAPTCHA_CHALLENGE_STABLE_WAIT_MS);
-      const prompt = await this.readChallengePrompt(challenge);
-      logger.info(`SunoCaptchaSolver: solving hCaptcha challenge: ${prompt}`);
-      if (CAPTCHA_DEBUG_SAVE) await this.saveChallengeSnapshot(page, challenge, prompt);
-      const actions = await this.solveVisibleChallenge(challenge, prompt);
-      await this.performActions(challenge, actions);
-      await this.submitChallenge(frame.locator('.button-submit'));
+      if (await this.hasVisibleCaptcha(page)) {
+        logger.warn('SunoCaptchaSolver: captcha detected; stopping for manual browser login');
+        throw new SunoCaptchaManualInterventionError();
+      }
+      await page.waitForTimeout(CAPTCHA_DETECTION_INTERVAL_MS);
     }
+    throw new Error('Captcha detection aborted');
   }
 
-  private async readChallengePrompt(challenge: Locator): Promise<string> {
-    const prompt = await challenge.locator('.prompt-text').first().innerText({ timeout: 10_000 });
-    return prompt.trim();
-  }
-
-  private async saveChallengeSnapshot(page: Page, challenge: Locator, prompt?: string): Promise<void> {
+  private async hasVisibleCaptcha(page: Page): Promise<boolean> {
     try {
-      await saveCaptchaChallengeSnapshot({ page, challenge, prompt, logger });
-    } catch (error) {
-      logger.warn(`SunoCaptchaSolver: failed to save hCaptcha challenge snapshot: ${this.formatError(error)}`);
+      const hcaptchaChallenge = page
+        .frameLocator('iframe[title*="hCaptcha"]')
+        .locator('.challenge-container');
+      if (await hcaptchaChallenge.isVisible({ timeout: 200 })) return true;
+
+      const turnstileFrame = page.locator('#generation-turnstile-container iframe');
+      if (await turnstileFrame.isVisible({ timeout: 200 })) return true;
+
+      return await page.evaluate((hookKey) => {
+        const state = (window as unknown as Record<string, any>)[hookKey];
+        return Array.isArray(state?.challenges) && state.challenges.some(
+          (challenge: any) => challenge.status === 'pending' || challenge.status === 'solving'
+        );
+      }, TURNSTILE_HOOK_KEY);
+    } catch {
+      return false;
     }
   }
 
-  private async waitForVisibleChallenge(challenge: Locator): Promise<void> {
-    await challenge.waitFor({ state: 'visible', timeout: 60_000 });
-  }
-
-  private async solveVisibleChallenge(
-    challenge: Locator,
-    prompt: string
-  ): Promise<YesCaptchaAction[]> {
-    const images = await this.readChallengeImages(challenge);
-    if (images.length) {
-      return this.yesCaptcha.solveHcaptchaByImages(images, prompt);
-    }
-
-    logger.info('SunoCaptchaSolver: no task-image tiles found; solving hCaptcha by challenge screenshot');
-    const screenshot = await challenge.screenshot({ timeout: 10_000 });
-    return this.yesCaptcha.solveHcaptchaByScreenshot(screenshot.toString('base64'), prompt);
-  }
-
-  private async readChallengeImages(challenge: Locator): Promise<string[]> {
-    const images = challenge.locator('.task-image');
-    const count = await images.count();
-    const screenshots: string[] = [];
-    for (let index = 0; index < count; index++) {
-      const image = await images.nth(index).screenshot({ timeout: 10_000 });
-      screenshots.push(image.toString('base64'));
-    }
-    return screenshots;
-  }
-
-  private async performActions(challenge: Locator, actions: YesCaptchaAction[]): Promise<void> {
-    const box = await challenge.boundingBox();
-    if (!box) {
-      throw new Error('.challenge-container boundingBox is null');
-    }
-
-    for (const action of actions) {
-      if (action.type === 'click') {
-        await challenge.click({ force: true, position: action.point });
-      } else if (action.type === 'clickTile') {
-        await this.clickChallengeTile(challenge, action.index);
-      } else {
-        await challenge.page().mouse.move(box.x + action.start.x, box.y + action.start.y);
-        await challenge.page().mouse.down();
-        await sleep(1.1);
-        await challenge.page().mouse.move(box.x + action.end.x, box.y + action.end.y, { steps: 30 });
-        await challenge.page().mouse.up();
-      }
-      await sleep(0.2);
-    }
-  }
-
-  private async clickChallengeTile(challenge: Locator, index: number): Promise<void> {
-    const challengeBox = await challenge.boundingBox();
-    const tileBox = await challenge.locator('.task-image').nth(index).boundingBox();
-    if (!challengeBox || !tileBox) {
-      throw new Error(`hCaptcha task image ${index} boundingBox is null`);
-    }
-    await challenge.click({
-      force: true,
-      position: {
-        x: tileBox.x - challengeBox.x + tileBox.width / 2,
-        y: tileBox.y - challengeBox.y + tileBox.height / 2
-      }
-    });
-  }
-
-  private async submitChallenge(button: Locator): Promise<void> {
-    await button.click({ force: true });
-    await sleep(1);
-  }
-
-  private async waitForHcaptchaImages(page: Page, signal: AbortSignal): Promise<void> {
-    return new Promise((resolve, reject) => {
-      let timeoutHandle: NodeJS.Timeout | undefined;
-      let activeRequestCount = 0;
-      let requestOccurred = false;
-
-      const cleanup = () => {
-        page.off('request', onRequest);
-        page.off('requestfinished', onRequestFinished);
-        page.off('requestfailed', onRequestFinished);
-        signal.removeEventListener('abort', onAbort);
-        clearTimeout(initialTimeout);
-        if (timeoutHandle) clearTimeout(timeoutHandle);
-      };
-      const finish = () => {
-        cleanup();
-        resolve();
-      };
-      const resetTimeout = () => {
-        if (timeoutHandle) clearTimeout(timeoutHandle);
-        if (activeRequestCount === 0) timeoutHandle = setTimeout(finish, 1_000);
-      };
-      const onRequest = (request: Request) => {
-        if (!HCAPTCHA_IMAGE_RE.test(request.url())) return;
-        logger.info(`SunoCaptchaSolver: hCaptcha image request ${request.url()}`);
-        requestOccurred = true;
-        activeRequestCount++;
-        if (timeoutHandle) clearTimeout(timeoutHandle);
-      };
-      const onRequestFinished = (request: Request) => {
-        if (!HCAPTCHA_IMAGE_RE.test(request.url())) return;
-        activeRequestCount--;
-        resetTimeout();
-      };
-      const onAbort = () => {
-        cleanup();
-        reject(new Error('AbortError'));
-      };
-      const initialTimeout = setTimeout(() => {
-        if (!requestOccurred) {
-          cleanup();
-          logger.warn('SunoCaptchaSolver: no old-style hCaptcha image request observed; continuing');
-          resolve();
-        } else {
-          resetTimeout();
-        }
-      }, 10_000);
-
-      page.on('request', onRequest);
-      page.on('requestfinished', onRequestFinished);
-      page.on('requestfailed', onRequestFinished);
-      signal.addEventListener('abort', onAbort, { once: true });
-    });
-  }
-
-  private formatError(error: unknown): string {
-    if (error instanceof Error) {
-      return error.message;
-    }
-    return String(error);
-  }
 }

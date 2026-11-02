@@ -1,5 +1,5 @@
 import { NextResponse, NextRequest } from "next/server";
-import { sunoApi } from "@/lib/SunoApi";
+import { SunoApi, sunoApi } from "@/lib/SunoApi";
 import { corsHeaders } from "@/lib/utils";
 
 export const dynamic = "force-dynamic";
@@ -19,7 +19,11 @@ export async function GET(req: NextRequest) {
         });
       }
 
-      const audioInfo = await (await sunoApi()).getClip(clipId);
+      const audioInfo: any = await (await sunoApi()).getClip(clipId);
+      if (audioInfo && typeof audioInfo === 'object') {
+        audioInfo.audio_url = SunoApi.pickAudioUrl(audioInfo);
+        audioInfo.media_urls = SunoApi.pickAudioMediaUrls(audioInfo);
+      }
 
       return new NextResponse(JSON.stringify(audioInfo), {
         status: 200,

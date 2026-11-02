@@ -23,5 +23,6 @@ export const sleep = (x: number, y?: number): Promise<void> => {
 export const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
-  'Access-Control-Allow-Headers': 'Content-Type, Authorization',
+  'Access-Control-Allow-Headers': 'Content-Type, Authorization, Idempotency-Key, Prefer',
+  'Access-Control-Expose-Headers': 'X-Generation-Request-Id, Location, Retry-After',
 }

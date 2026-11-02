@@ -1,7 +1,10 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { chromium } from 'playwright';
-import { createMatchingChromiumUserAgent } from './browserFingerprint';
+import {
+  createDesktopChromiumClientHints,
+  createMatchingChromiumUserAgent
+} from './browserFingerprint';
 
 test('builds a Linux user agent matching the actual Chromium version', () => {
   assert.equal(
@@ -15,6 +18,19 @@ test('rejects an incomplete Chromium version', () => {
   assert.throws(
     () => createMatchingChromiumUserAgent('148', 'linux', 'x64'),
     /Unsupported Chromium version/
+  );
+});
+
+test('builds desktop client hints matching the user agent', () => {
+  assert.deepEqual(
+    createDesktopChromiumClientHints(
+      createMatchingChromiumUserAgent('148.0.7778.96', 'linux', 'x64')
+    ),
+    {
+      'sec-ch-ua': '"Chromium";v="148", "Not=A?Brand";v="24"',
+      'sec-ch-ua-mobile': '?0',
+      'sec-ch-ua-platform': '"Linux"'
+    }
   );
 });
 

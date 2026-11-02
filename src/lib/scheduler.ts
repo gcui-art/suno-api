@@ -7,6 +7,11 @@ const logger = pino();
 
 const g = global as unknown as { _sunoSchedulerStarted?: boolean; _sunoAuthRefreshTimer?: ReturnType<typeof setInterval> };
 
+function authRefreshIntervalMs(): number {
+  const minutes = Number.parseInt(process.env.SUNO_AUTH_REFRESH_INTERVAL_MINUTES ?? '', 10);
+  return (Number.isFinite(minutes) && minutes > 0 ? minutes : 120) * 60 * 1000;
+}
+
 /**
  * 上海时间 08:00 = UTC 00:00
  * 计算距下一次 UTC 00:00 的毫秒数
@@ -66,7 +71,7 @@ export function startScheduler(): void {
 
   setTimeout(run, delay);
 
-  // 每 30 分钟刷新一次所有账号的 Clerk session token
+  // 低频刷新所有已使用账号；请求到来时 keepAlive 仍会按 JWT 过期时间续期。
   if (!g._sunoAuthRefreshTimer) {
     g._sunoAuthRefreshTimer = setInterval(async () => {
       await ensureLoaded();
@@ -81,6 +86,6 @@ export function startScheduler(): void {
           logger.warn(`[Scheduler] 账号 ${account.id} session 刷新失败: ` + err);
         }
       }
-    }, 30 * 60 * 1000);
+    }, authRefreshIntervalMs());
   }
 }

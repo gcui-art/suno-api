@@ -81,19 +81,18 @@ export class SunoCaptchaDebugSession {
     error: unknown,
     videoPath?: string
   ): Promise<void> {
-    if (!files) return;
     try {
       await notifyCaptchaFailure({
         error,
         feishuNotifier: this.feishuNotifier,
         formatError,
-        htmlPath: files.htmlPath,
-        jsonPath: files.jsonPath,
-        screenshotPath: files.screenshotPath,
-        viewportScreenshotPath: files.viewportScreenshotPath,
+        htmlPath: files?.htmlPath,
+        jsonPath: files?.jsonPath,
+        screenshotPath: files?.screenshotPath,
+        viewportScreenshotPath: files?.viewportScreenshotPath,
         videoPath
       });
-      this.logger.info('SunoCaptchaSolver: sent failure diagnostics to Feishu');
+      this.logger.info('SunoCaptchaSolver: sent manual captcha notification');
     } catch (notifyError) {
       this.logger.warn(`SunoCaptchaSolver: failed to notify Feishu: ${formatError(notifyError)}`);
     }

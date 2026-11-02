@@ -1,5 +1,5 @@
 import { NextRequest } from "next/server";
-import { sunoApi } from "@/lib/SunoApi";
+import { SunoApi, sunoApi } from "@/lib/SunoApi";
 import { errorResponse, jsonResponse, optionsResponse } from "@/app/api/sunoProxyResponse";
 
 export const dynamic = "force-dynamic";
@@ -12,7 +12,11 @@ interface RouteContext {
 
 export async function GET(req: NextRequest, context: RouteContext) {
   try {
-    const result = await (await sunoApi()).getClip(context.params.id);
+    const result: any = await (await sunoApi()).getClip(context.params.id);
+    if (result && typeof result === 'object') {
+      result.audio_url = SunoApi.pickAudioUrl(result);
+      result.media_urls = SunoApi.pickAudioMediaUrls(result);
+    }
     return jsonResponse(result);
   } catch (error: any) {
     console.error('Error fetching clip:', error);

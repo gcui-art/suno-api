@@ -1,21 +1,28 @@
 import os from 'node:os';
-import UserAgent from 'user-agents';
+const DEFAULT_CHROMIUM_VERSION = '148.0.7778.96';
 
 export function createBrowserUserAgent(): string {
   const configured = process.env.BROWSER_USER_AGENT;
   if (configured) {
     return configured;
   }
+  const version = process.env.BROWSER_CHROMIUM_VERSION || DEFAULT_CHROMIUM_VERSION;
+  return createMatchingChromiumUserAgent(version);
+}
 
-  if (process.platform === 'win32') {
-    return new UserAgent({ deviceCategory: 'desktop', platform: 'Win32' }).random().toString();
-  }
-
-  if (process.platform === 'darwin') {
-    return new UserAgent({ deviceCategory: 'desktop', platform: 'MacIntel' }).random().toString();
-  }
-
-  return `Mozilla/5.0 (X11; Linux ${os.arch() === 'arm64' ? 'aarch64' : 'x86_64'}) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36`;
+export function createDesktopChromiumClientHints(userAgent: string): Record<string, string> {
+  const match = userAgent.match(/(?:Chrome|Chromium)\/(\d+)/);
+  const majorVersion = match?.[1] || DEFAULT_CHROMIUM_VERSION.split('.')[0];
+  const platform = userAgent.includes('Windows')
+    ? 'Windows'
+    : userAgent.includes('Macintosh')
+      ? 'macOS'
+      : 'Linux';
+  return {
+    'sec-ch-ua': `"Chromium";v="${majorVersion}", "Not=A?Brand";v="24"`,
+    'sec-ch-ua-mobile': '?0',
+    'sec-ch-ua-platform': `"${platform}"`
+  };
 }
 
 export function createMatchingChromiumUserAgent(

@@ -37,13 +37,13 @@
                   },
                   "model": {
                     "type": "string",
-                    "description": "Model name ,default is chirp-auk-turbo",
-                    "example": "chirp-auk-turbo"
+                    "description": "Model name ,default is chirp-hawk",
+                    "example": "chirp-hawk"
                   },
                   "mv": {
                     "type": "string",
                     "description": "Suno model name alias used by the web payload.",
-                    "example": "chirp-fenix"
+                    "example": "chirp-hawk"
                   },
                   "wait_audio": {
                     "type": "boolean",
@@ -443,8 +443,8 @@
                   },
                   "model": {
                     "type": "string",
-                    "description": "Model name ,default is chirp-auk-turbo",
-                    "example": "chirp-auk-turbo"
+                    "description": "Model name ,default is chirp-hawk",
+                    "example": "chirp-hawk"
                   },
                   "metadata": {
                     "$ref": "#/components/schemas/suno_generate_metadata"
@@ -628,7 +628,7 @@
                           "id": {
                             "type": "string",
                             "description": "Model ID",
-                            "example": "chirp-auk-turbo"
+                            "example": "chirp-hawk"
                           },
                           "name": {
                             "type": "string",
@@ -638,7 +638,7 @@
                           "external_key": {
                             "type": "string",
                             "description": "External key used when generating audio",
-                            "example": "chirp-auk-turbo"
+                            "example": "chirp-hawk"
                           },
                           "major_version": {
                             "type": "integer",
@@ -1555,7 +1555,7 @@
                   "model": {
                     "type": "string",
                     "description": "Model name.",
-                    "example": "chirp-auk-turbo"
+                    "example": "chirp-hawk"
                   },
                   "wait_audio": {
                     "type": "boolean",
@@ -1732,7 +1732,7 @@
           },
           "model_name": {
             "type": "string",
-            "description": "suno model name, e.g. chirp-auk-turbo"
+            "description": "suno model name, e.g. chirp-hawk"
           },
           "status": {
             "type": "string",
