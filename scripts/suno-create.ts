@@ -11,7 +11,7 @@
  */
 import { chromium, type Browser, type BrowserContext, type Page, type Response, type Video } from 'playwright';
 import * as cookie from 'cookie';
-import { mkdir, writeFile } from 'node:fs/promises';
+import { mkdir, rename, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { getDb } from '../src/lib/db';
 import { finishSunoCreateRun, startSunoCreateRun } from '../src/lib/sunoCreateRunStore';
@@ -298,8 +298,10 @@ async function runAccount(
     if (video) {
       try {
         await mkdir(VIDEO_DIR, { recursive: true });
+        const videoSource = await video.path();
         const target = path.join(VIDEO_DIR, `${account.email}-${Date.now()}.webm`);
-        await video.saveAs(target);
+        // 用重命名而不是 saveAs：两者同目录，重命名可以避免留下一份 page@xxx.webm 副本。
+        await rename(videoSource, target);
         console.log(`[${account.email}] Video: ${target}`);
       } catch (error: any) {
         console.log(`[${account.email}] Failed to save video:`, error?.message ?? error);
