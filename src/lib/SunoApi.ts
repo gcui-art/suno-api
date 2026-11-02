@@ -922,7 +922,8 @@ export class SunoApi {
     const customTagsLength = typeof payload.tags === 'string' ? payload.tags.length : 0;
     const serverBrowserFallbackCompatible = browserCompatible &&
       payload.generation_type === 'TEXT' &&
-      (createMode === 'simple' || createMode === 'custom') &&
+      // 普通文本生成不会写 metadata.create_mode，缺省即等价于 Simple。
+      (createMode === undefined || createMode === 'simple' || createMode === 'custom') &&
       (typeof payload.gpt_description_prompt === 'string' || typeof payload.prompt === 'string') &&
       customPromptLength <= 5_000 && customTagsLength <= 1_000 &&
       !payload.user_uploaded_images_b64 &&
