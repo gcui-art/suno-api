@@ -10,7 +10,11 @@ import {
 import { SunoCaptchaDebugSession } from '@/lib/sunoCaptchaDebugSession';
 import { closeKnownPopups, describePointerBlocker, waitForPointerTarget } from '@/lib/sunoPopupHandler';
 import { saveCaptchaChallengeSnapshot } from '@/lib/captchaChallengeSnapshot';
-import { CREATE_SONG_BUTTON_SELECTOR, PROMPT_TEXTAREA_SELECTOR } from '@/lib/sunoCreateSelectors';
+import {
+  CREATE_SONG_BUTTON_SELECTOR,
+  PROMPT_TEXTAREA_SELECTORS,
+  waitForPromptTextarea
+} from '@/lib/sunoCreateSelectors';
 import {
   CaptchaGenerateCapture,
   CaptchaGenerationResult,
@@ -175,9 +179,16 @@ export class SunoCaptchaSolver {
   private async triggerCaptcha(page: Page): Promise<void> {
     logger.info('SunoCaptchaSolver: triggering captcha from create page');
     await closeKnownPopups(page);
-    const textarea = page.locator(PROMPT_TEXTAREA_SELECTOR);
     logger.info('SunoCaptchaSolver: waiting for prompt textarea');
-    await textarea.waitFor({ state: 'visible', timeout: 60_000 });
+    const handle = await waitForPromptTextarea(page, 60_000);
+    if (!handle) {
+      throw new Error(
+        `Suno create page never exposed a prompt textarea (url=${page.url()}); `
+          + `tried ${PROMPT_TEXTAREA_SELECTORS.join(' | ')}`
+      );
+    }
+    const { locator: textarea, selector: textareaSelector } = handle;
+    logger.info(`SunoCaptchaSolver: prompt textarea matched by ${textareaSelector}`);
 
     await Promise.race([
       page.waitForResponse((resp) => resp.url().includes('checksiteconfig'), { timeout: 8_000 })
@@ -187,7 +198,7 @@ export class SunoCaptchaSolver {
     ]);
 
     logger.info('SunoCaptchaSolver: filling prompt textarea');
-    await this.focusPromptTextarea(page, textarea);
+    await this.focusPromptTextarea(page, textarea, textareaSelector);
     await textarea.fill('');
     await page.waitForTimeout(500);
     await textarea.type('Lorem ipsum', { delay: 40 });
@@ -226,15 +237,15 @@ export class SunoCaptchaSolver {
    * base-ui 渲染的全屏 portal，会拦截 textarea 的点击并一路重试到超时。
    * 这里先清掉遮挡，实在清不掉就退回 DOM focus，至少让流程能继续。
    */
-  private async focusPromptTextarea(page: Page, textarea: Locator): Promise<void> {
-    if (await waitForPointerTarget(page, PROMPT_TEXTAREA_SELECTOR)) {
+  private async focusPromptTextarea(page: Page, textarea: Locator, selector: string): Promise<void> {
+    if (await waitForPointerTarget(page, selector)) {
       await textarea.click({ timeout: 15_000 });
       return;
     }
 
     logger.warn(
       `SunoCaptchaSolver: prompt textarea is still covered by `
-        + `${await describePointerBlocker(page, PROMPT_TEXTAREA_SELECTOR)}; focusing via DOM`
+        + `${await describePointerBlocker(page, selector)}; focusing via DOM`
     );
     await textarea.evaluate((element) => (element as HTMLTextAreaElement).focus());
   }

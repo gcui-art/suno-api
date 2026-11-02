@@ -9,13 +9,15 @@
  *
  * 默认遍历 DB 中所有 enabled 账号。每个账号使用独立 browser context。
  */
-import { chromium, type Browser, type BrowserContext, type Page, type Response } from 'playwright';
+import { chromium, type Browser, type BrowserContext, type Page, type Response, type Video } from 'playwright';
 import * as cookie from 'cookie';
+import { mkdir, writeFile } from 'node:fs/promises';
+import path from 'node:path';
 import { getDb } from '../src/lib/db';
 import { finishSunoCreateRun, startSunoCreateRun } from '../src/lib/sunoCreateRunStore';
 import {
   CREATE_SONG_BUTTON_SELECTOR,
-  PROMPT_TEXTAREA_SELECTOR,
+  waitForPromptTextarea,
 } from '../src/lib/sunoCreateSelectors';
 import {
   describePointerBlocker,
@@ -27,6 +29,9 @@ const TIMEOUT = 60_000;
 const USER_AGENT =
   'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36';
 const INVALID_COOKIE_RE = /[\x00-\x1f\x7f;,"]/;
+const DEBUG_SAVE = process.env.CAPTCHA_DEBUG_SAVE === 'true';
+const VIDEO_DIR = path.join(process.cwd(), 'logs', 'create-videos');
+const FAILURE_DIR = path.join(process.cwd(), 'logs', 'create-failures');
 
 interface AccountRow {
   id: string;
@@ -153,11 +158,28 @@ async function createAccountContext(browser: Browser, account: AccountRow): Prom
   return browser.newContext({
     userAgent: USER_AGENT,
     viewport: { width: 1280, height: 800 },
+    recordVideo: DEBUG_SAVE
+      ? { dir: VIDEO_DIR, size: { width: 1280, height: 800 } }
+      : undefined,
     storageState: {
       cookies: toPlaywrightCookies(account.cookie),
       origins: [],
     },
   });
+}
+
+/** 失败现场：整页截图 + DOM，方便看出是登录掉了、被 Cloudflare 拦了，还是选择器又变了。 */
+async function saveFailureArtifacts(page: Page, account: AccountRow): Promise<void> {
+  const stamp = new Date().toISOString().replace(/[:.]/g, '-');
+  const prefix = path.join(FAILURE_DIR, `${account.email}-${stamp}`);
+  try {
+    await mkdir(FAILURE_DIR, { recursive: true });
+    await page.screenshot({ path: `${prefix}.png`, fullPage: true });
+    await writeFile(`${prefix}.html`, await page.content(), 'utf8');
+    console.log(`[${account.email}] Failure artifacts: ${prefix}.png / .html`);
+  } catch (error: any) {
+    console.log(`[${account.email}] Failed to save artifacts:`, error?.message ?? error);
+  }
 }
 
 function isGenerateUrl(url: string): boolean {
@@ -223,10 +245,14 @@ async function runAccount(
   const context = await createAccountContext(browser, account);
   attachNetworkLogging(context, account, verbose);
 
+  let page: Page | undefined;
+  let video: Video | undefined;
+
   try {
-    const page = await context.newPage();
+    page = await context.newPage();
     page.setDefaultTimeout(TIMEOUT);
     page.setDefaultNavigationTimeout(TIMEOUT);
+    video = page.video() ?? undefined;
 
     await openCreatePage(page, account);
     await fillPrompt(page, prompt, account);
@@ -260,6 +286,7 @@ async function runAccount(
   } catch (e: any) {
     const message = e?.message ?? String(e);
     console.error(`[${account.email}] Error:`, message);
+    if (page) await saveFailureArtifacts(page, account);
     await finishSunoCreateRun(runId, 'failed', message);
     if (keepOpenOnFailure) {
       console.log(`[${account.email}] Keeping browser open after error. Press Ctrl+C when done.`);
@@ -267,7 +294,17 @@ async function runAccount(
     }
     return { email: account.email, ok: false, error: message };
   } finally {
-    await context.close();
+    await context.close().catch(() => {});
+    if (video) {
+      try {
+        await mkdir(VIDEO_DIR, { recursive: true });
+        const target = path.join(VIDEO_DIR, `${account.email}-${Date.now()}.webm`);
+        await video.saveAs(target);
+        console.log(`[${account.email}] Video: ${target}`);
+      } catch (error: any) {
+        console.log(`[${account.email}] Failed to save video:`, error?.message ?? error);
+      }
+    }
   }
 }
 
@@ -287,8 +324,14 @@ async function fillPrompt(
   prompt: string,
   account: AccountRow,
 ) {
-  const textarea = page.locator(PROMPT_TEXTAREA_SELECTOR);
-  await textarea.waitFor({ state: 'visible', timeout: TIMEOUT });
+  const handle = await waitForPromptTextarea(page, TIMEOUT);
+  if (!handle) {
+    throw new Error(
+      `create page never exposed a prompt textarea (url=${page.url()})`,
+    );
+  }
+  const { locator: textarea, selector: textareaSelector } = handle;
+  console.log(`[${account.email}] Prompt textarea matched by ${textareaSelector}`);
 
   await Promise.race([
     page.waitForResponse((r) => r.url().includes('checksiteconfig'), { timeout: 8_000 })
@@ -297,12 +340,12 @@ async function fillPrompt(
     page.waitForTimeout(8_000),
   ]);
 
-  if (await waitForPointerTarget(page, PROMPT_TEXTAREA_SELECTOR)) {
+  if (await waitForPointerTarget(page, textareaSelector)) {
     await textarea.click({ timeout: 15_000 });
   } else {
     console.log(
       `[${account.email}] Textarea is covered by `
-        + `${await describePointerBlocker(page, PROMPT_TEXTAREA_SELECTOR)}; focusing via DOM`,
+        + `${await describePointerBlocker(page, textareaSelector)}; focusing via DOM`,
     );
     await textarea.evaluate((element) => (element as HTMLTextAreaElement).focus());
   }
