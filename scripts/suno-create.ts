@@ -17,6 +17,10 @@ import {
   CREATE_SONG_BUTTON_SELECTOR,
   PROMPT_TEXTAREA_SELECTOR,
 } from '../src/lib/sunoCreateSelectors';
+import {
+  describePointerBlocker,
+  waitForPointerTarget,
+} from '../src/lib/sunoPopupHandler';
 
 const DEFAULT_PROMPT = 'A chill lo-fi hip hop beat with soft piano and rain sounds';
 const TIMEOUT = 60_000;
@@ -229,6 +233,12 @@ async function runAccount(
     const generatePromise = waitForGenerateResponse(page);
 
     console.log(`[${account.email}] Clicking "Create song"...`);
+    if (!(await waitForPointerTarget(page, CREATE_SONG_BUTTON_SELECTOR))) {
+      console.log(
+        `[${account.email}] Create song button covered by `
+          + `${await describePointerBlocker(page, CREATE_SONG_BUTTON_SELECTOR)}`,
+      );
+    }
     await page.locator(CREATE_SONG_BUTTON_SELECTOR).click();
 
     const genResp = await generatePromise;
@@ -287,7 +297,15 @@ async function fillPrompt(
     page.waitForTimeout(8_000),
   ]);
 
-  await textarea.click();
+  if (await waitForPointerTarget(page, PROMPT_TEXTAREA_SELECTOR)) {
+    await textarea.click({ timeout: 15_000 });
+  } else {
+    console.log(
+      `[${account.email}] Textarea is covered by `
+        + `${await describePointerBlocker(page, PROMPT_TEXTAREA_SELECTOR)}; focusing via DOM`,
+    );
+    await textarea.evaluate((element) => (element as HTMLTextAreaElement).focus());
+  }
   await textarea.fill('');
   await page.waitForTimeout(500);
   await textarea.type(prompt, { delay: 40 });

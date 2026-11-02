@@ -8,7 +8,7 @@ import {
   startCaptchaRequestLoggingAfterClick
 } from '@/lib/sunoCaptchaNetworkLogging';
 import { SunoCaptchaDebugSession } from '@/lib/sunoCaptchaDebugSession';
-import { closeKnownPopups } from '@/lib/sunoPopupHandler';
+import { closeKnownPopups, describePointerBlocker, waitForPointerTarget } from '@/lib/sunoPopupHandler';
 import { saveCaptchaChallengeSnapshot } from '@/lib/captchaChallengeSnapshot';
 import { CREATE_SONG_BUTTON_SELECTOR, PROMPT_TEXTAREA_SELECTOR } from '@/lib/sunoCreateSelectors';
 import {
@@ -187,7 +187,7 @@ export class SunoCaptchaSolver {
     ]);
 
     logger.info('SunoCaptchaSolver: filling prompt textarea');
-    await textarea.click();
+    await this.focusPromptTextarea(page, textarea);
     await textarea.fill('');
     await page.waitForTimeout(500);
     await textarea.type('Lorem ipsum', { delay: 40 });
@@ -205,6 +205,12 @@ export class SunoCaptchaSolver {
     );
     logger.info('SunoCaptchaSolver: Create song button enabled; waiting 5s before click');
     await page.waitForTimeout(5_000);
+    if (!(await waitForPointerTarget(page, CREATE_SONG_BUTTON_SELECTOR))) {
+      logger.warn(
+        `SunoCaptchaSolver: Create song button is covered by `
+          + `${await describePointerBlocker(page, CREATE_SONG_BUTTON_SELECTOR)}`
+      );
+    }
     await this.logCreateButtonDiagnostics(createButton);
     logger.info('SunoCaptchaSolver: clicking Create song button');
     await startCaptchaRequestLoggingAfterClick(
@@ -213,6 +219,24 @@ export class SunoCaptchaSolver {
       logger,
       () => createButton.click()
     );
+  }
+
+  /**
+   * Suno 会不定时弹出营销弹窗（"You've unlocked 20% off Premier annual."），它是
+   * base-ui 渲染的全屏 portal，会拦截 textarea 的点击并一路重试到超时。
+   * 这里先清掉遮挡，实在清不掉就退回 DOM focus，至少让流程能继续。
+   */
+  private async focusPromptTextarea(page: Page, textarea: Locator): Promise<void> {
+    if (await waitForPointerTarget(page, PROMPT_TEXTAREA_SELECTOR)) {
+      await textarea.click({ timeout: 15_000 });
+      return;
+    }
+
+    logger.warn(
+      `SunoCaptchaSolver: prompt textarea is still covered by `
+        + `${await describePointerBlocker(page, PROMPT_TEXTAREA_SELECTOR)}; focusing via DOM`
+    );
+    await textarea.evaluate((element) => (element as HTMLTextAreaElement).focus());
   }
 
   private async logCreateButtonDiagnostics(createButton: Locator): Promise<void> {
