@@ -4,14 +4,29 @@ import { Locator, Page } from 'playwright';
 const logger = pino();
 
 /**
- * Suno 的营销弹窗（例如 "You've unlocked 20% off Premier annual."）由 base-ui 渲染成
- * 全屏 portal：`<div data-base-ui-portal class="z-[1000] fixed top-0 left-0">`。
+ * Suno 的营销/账单弹窗由 base-ui 渲染成全屏 portal：
+ * `<div data-base-ui-portal class="z-[1000] fixed top-0 left-0">`。
  * 它会拦截页面上所有点击，导致 textarea / 按钮的 click 一直重试直到超时。
+ *
+ * 已知文案：
+ * - 促销："You've unlocked 20% off Premier annual."
+ * - 账单："Update Billing / We were unable to process your recent subscription renewal."
  */
-export const PROMO_DIALOG_TEXT_RE =
-  /(?:\d{1,3}\s*%\s*off|off\s+premier|premier\s+annual|unlock(?:ed)?\s+\d{1,3}\s*%?\s*off)/i;
+export const BLOCKING_DIALOG_TEXT_RE = new RegExp(
+  [
+    '\\d{1,3}\\s*%\\s*off',
+    'off\\s+premier',
+    'premier\\s+annual',
+    'unlock(?:ed)?\\s+\\d{1,3}\\s*%?\\s*off',
+    'update\\s+billing',
+    'unable\\s+to\\s+process\\s+your\\s+recent\\s+subscription',
+    'retry\\s+payment',
+    'update\\s+your\\s+payment\\s+method',
+  ].join('|'),
+  'i'
+);
 
-const PROMO_DIALOG_SELECTOR = [
+const BLOCKING_DIALOG_SELECTOR = [
   '[data-base-ui-portal] [role="dialog"]',
   '[data-base-ui-portal] [role="alertdialog"]',
   '[role="dialog"][aria-modal="true"]',
@@ -23,8 +38,8 @@ const COOKIE_BANNER_SELECTORS = [
   '#onetrust-close-btn-container button',
 ];
 
-export function isPromoDialogText(text: string | null | undefined): boolean {
-  return Boolean(text && PROMO_DIALOG_TEXT_RE.test(text));
+export function isBlockingDialogText(text: string | null | undefined): boolean {
+  return Boolean(text && BLOCKING_DIALOG_TEXT_RE.test(text));
 }
 
 async function isVisible(locator: Locator): Promise<boolean> {
@@ -56,7 +71,7 @@ export async function closeKnownPopups(page: Page): Promise<void> {
 }
 
 async function findPromoDialog(page: Page): Promise<Locator | undefined> {
-  const dialogs = page.locator(PROMO_DIALOG_SELECTOR).filter({ hasText: PROMO_DIALOG_TEXT_RE });
+  const dialogs = page.locator(BLOCKING_DIALOG_SELECTOR).filter({ hasText: BLOCKING_DIALOG_TEXT_RE });
   const dialogCount = await dialogs.count().catch(() => 0);
   for (let index = 0; index < dialogCount; index += 1) {
     const dialog = dialogs.nth(index);
@@ -64,7 +79,7 @@ async function findPromoDialog(page: Page): Promise<Locator | undefined> {
   }
 
   // 弹窗的遮罩层是 portal 的兄弟节点，role=dialog 未必命中，这里退回到整个 portal。
-  const portals = page.locator('[data-base-ui-portal]').filter({ hasText: PROMO_DIALOG_TEXT_RE });
+  const portals = page.locator('[data-base-ui-portal]').filter({ hasText: BLOCKING_DIALOG_TEXT_RE });
   const portalCount = await portals.count().catch(() => 0);
   for (let index = 0; index < portalCount; index += 1) {
     const portal = portals.nth(index);
@@ -77,13 +92,13 @@ async function findPromoDialog(page: Page): Promise<Locator | undefined> {
  * 关掉营销弹窗：Esc → 关闭按钮 → 直接摘掉 portal 并恢复 body 的交互样式。
  * 返回是否已经不再拦截页面。
  */
-export async function dismissPromoDialog(page: Page): Promise<boolean> {
+export async function dismissBlockingDialog(page: Page): Promise<boolean> {
   const dialog = await findPromoDialog(page);
   if (!dialog) return false;
 
   await page.keyboard.press('Escape').catch(() => {});
   if (await waitUntilHidden(page, dialog, 1_500)) {
-    logger.info('SunoPopupHandler: closed promo dialog with Escape');
+    logger.info('SunoPopupHandler: closed blocking dialog with Escape');
     return true;
   }
 
@@ -104,16 +119,16 @@ export async function dismissPromoDialog(page: Page): Promise<boolean> {
     if (!clicked) continue;
     if (!(await waitUntilHidden(page, dialog, 1_500))) continue;
 
-    logger.info('SunoPopupHandler: closed promo dialog with close button');
+    logger.info('SunoPopupHandler: closed blocking dialog with close button');
     return true;
   }
 
-  const removed = await removePromoPortals(page);
+  const removed = await removeBlockingPortals(page);
   return removed > 0;
 }
 
 /** 直接移除包含营销文案的 portal，并清掉 base-ui 加在 body 上的 pointer-events / inert 锁。 */
-export async function removePromoPortals(page: Page): Promise<number> {
+export async function removeBlockingPortals(page: Page): Promise<number> {
   const removed = await page.evaluate((pattern) => {
     const patternRe = new RegExp(pattern, 'i');
     let count = 0;
@@ -136,10 +151,10 @@ export async function removePromoPortals(page: Page): Promise<number> {
       element.removeAttribute('inert');
     });
     return count;
-  }, PROMO_DIALOG_TEXT_RE.source).catch(() => 0);
+  }, BLOCKING_DIALOG_TEXT_RE.source).catch(() => 0);
 
   if (removed > 0) {
-    logger.warn(`SunoPopupHandler: force-removed ${removed} promo portal(s) blocking the page`);
+    logger.warn(`SunoPopupHandler: force-removed ${removed} blocking portal(s)`);
   }
   return removed;
 }
@@ -190,7 +205,7 @@ export async function waitForPointerTarget(
 
   const deadline = Date.now() + timeoutMs;
   while (Date.now() < deadline) {
-    if (await dismissPromoDialog(page)) continue;
+    if (await dismissBlockingDialog(page)) continue;
 
     const removedBlocker = await removePortalBlockingTarget(page, selector);
     if (removedBlocker) {
