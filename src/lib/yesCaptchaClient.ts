@@ -44,6 +44,7 @@ interface YesCaptchaSolution {
   box?: Array<string | number | YesCaptchaDragBox>;
   objects?: Array<boolean | number>;
   top_k?: number[];
+  clicks?: YesCaptchaPoint[];
   coordinates?: YesCaptchaPoint[];
   pointJson?: YesCaptchaPoint[];
   gRecaptchaResponse?: string;
@@ -69,14 +70,18 @@ export class YesCaptchaClient {
     signal?: AbortSignal
   ): Promise<string> {
     logger.info('YesCaptchaClient: creating TurnstileTaskProxyless task');
-    const created = await this.createTask({
-      type: 'TurnstileTaskProxyless',
-      websiteURL,
-      websiteKey
-    }, signal);
-    const result = created.status === 'ready'
-      ? created
-      : await this.waitForResult(created.taskId, signal);
+    const created = await this.createTask(
+      {
+        type: 'TurnstileTaskProxyless',
+        websiteURL,
+        websiteKey
+      },
+      signal
+    );
+    const result =
+      created.status === 'ready'
+        ? created
+        : await this.waitForResult(created.taskId, signal);
     const token = result.solution?.token?.trim();
     if (!token) {
       throw new Error('YesCaptcha returned no Turnstile token');
@@ -91,11 +96,14 @@ export class YesCaptchaClient {
     logger.info(
       `YesCaptchaClient: creating HCaptchaClassification task with ${queries.length} queries, question: ${question}`
     );
-    return this.solveHcaptchaClassification({
-      type: 'HCaptchaClassification',
-      queries,
-      question
-    });
+    return this.solveHcaptchaClassification(
+      {
+        type: 'HCaptchaClassification',
+        queries,
+        question
+      },
+      queries.length
+    );
   }
 
   public async solveHcaptchaByScreenshot(
@@ -112,11 +120,22 @@ export class YesCaptchaClient {
     });
   }
 
-  private async solveHcaptchaClassification(task: Record<string, unknown>): Promise<YesCaptchaAction[]> {
+  private async solveHcaptchaClassification(
+    task: Record<string, unknown>,
+    tileCount?: number
+  ): Promise<YesCaptchaAction[]> {
     const created = await this.createTask(task);
-    const result = created.status === 'ready' ? created : await this.waitForResult(created.taskId);
-    logger.info(`YesCaptchaClient: HCaptchaClassification solution ${JSON.stringify(result.solution)}`);
-    const actions = this.extractActions(result.solution);
+    const result =
+      created.status === 'ready'
+        ? created
+        : await this.waitForResult(created.taskId);
+    logger.info(
+      `YesCaptchaClient: HCaptchaClassification solution ${JSON.stringify(result.solution)}`
+    );
+    const actions =
+      tileCount === undefined
+        ? this.extractScreenshotActions(result.solution)
+        : this.extractTileActions(result.solution, tileCount);
     if (actions.length === 0) {
       throw new Error('YesCaptcha returned no hCaptcha actions');
     }
@@ -139,7 +158,10 @@ export class YesCaptchaClient {
     return response.data;
   }
 
-  private async waitForResult(taskId?: string, signal?: AbortSignal): Promise<TaskResultResponse> {
+  private async waitForResult(
+    taskId?: string,
+    signal?: AbortSignal
+  ): Promise<TaskResultResponse> {
     if (!taskId) {
       throw new Error('YesCaptcha taskId is required');
     }
@@ -159,15 +181,38 @@ export class YesCaptchaClient {
     throw new Error(`YesCaptcha task timed out: ${taskId}`);
   }
 
-  private extractActions(solution?: YesCaptchaSolution): YesCaptchaAction[] {
+  private extractTileActions(
+    solution: YesCaptchaSolution | undefined,
+    tileCount: number
+  ): YesCaptchaAction[] {
+    // Coordinates describe YesCaptcha's montage, not the browser's tile layout.
+    if (solution?.objects && solution.objects.length !== tileCount) {
+      throw new Error(
+        'YesCaptcha objects count does not match the submitted image count'
+      );
+    }
+    const indexes = solution?.objects
+      ? this.extractObjectIndexes(solution.objects)
+      : (solution?.top_k ?? []);
+    if (
+      indexes.some(
+        (index) => !Number.isInteger(index) || index < 0 || index >= tileCount
+      )
+    ) {
+      throw new Error('YesCaptcha returned an invalid tile index');
+    }
+    return indexes.map((index) => ({ type: 'clickTile', index }));
+  }
+
+  private extractScreenshotActions(
+    solution?: YesCaptchaSolution
+  ): YesCaptchaAction[] {
     if (solution?.type === 'drag' && solution.box?.length) {
-      return solution.box
-        .filter(this.isDragBox)
-        .map((box) => ({
-          type: 'drag',
-          start: this.toPoint(box.start),
-          end: this.toPoint(box.end)
-        }));
+      return solution.box.filter(this.isDragBox).map((box) => ({
+        type: 'drag',
+        start: this.toPoint(box.start),
+        end: this.toPoint(box.end)
+      }));
     }
 
     const boxPoints = this.extractBoxPoints(solution?.box);
@@ -175,19 +220,15 @@ export class YesCaptchaClient {
       return boxPoints.map((point) => ({ type: 'click', point }));
     }
 
-    const objectIndexes = this.extractObjectIndexes(solution?.objects);
-    if (objectIndexes.length) {
-      return objectIndexes.map((index) => ({ type: 'clickTile', index }));
-    }
-
-    const rawPoints = solution?.coordinates ?? solution?.pointJson;
+    const rawPoints =
+      solution?.clicks ?? solution?.coordinates ?? solution?.pointJson;
     if (rawPoints?.length) {
-      return rawPoints.map((point) => ({ type: 'click', point: this.toPoint([point.x, point.y]) }));
+      return rawPoints.map((point) => ({
+        type: 'click',
+        point: this.toPoint([point.x, point.y])
+      }));
     }
 
-    if (solution?.top_k?.length) {
-      return solution.top_k.map((index) => ({ type: 'clickTile', index }));
-    }
     return [];
   }
 
@@ -232,7 +273,11 @@ export class YesCaptchaClient {
     return Array.isArray(box.start) && Array.isArray(box.end);
   }
 
-  private assertSuccess(response: { errorId: number; errorCode?: string; errorDescription?: string }) {
+  private assertSuccess(response: {
+    errorId: number;
+    errorCode?: string;
+    errorDescription?: string;
+  }) {
     if (response.errorId === 0) {
       return;
     }
