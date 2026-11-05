@@ -7,7 +7,6 @@ import {
   toggleAccount,
 } from '@/lib/accountStore';
 import { cache } from '@/lib/SunoApi';
-import { clearCaptchaCooldown } from '@/lib/sunoGenerationGuard';
 import { corsHeaders } from '@/lib/utils';
 
 export const dynamic = 'force-dynamic';
@@ -52,7 +51,6 @@ export async function PATCH(
       await updateAccountCookie(params.id, cookie);
       // 清除该账号的 SunoApi 缓存，下次请求重新初始化
       cache.delete(params.id);
-      clearCaptchaCooldown(params.id);
       return NextResponse.json({ success: true }, { headers: corsHeaders });
     }
 

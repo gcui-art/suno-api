@@ -16,9 +16,7 @@ import {
 } from '@/lib/browserFingerprint';
 import { SunoCaptchaManualInterventionError } from '@/lib/sunoCaptchaErrors';
 import {
-  clearCaptchaCooldown,
   generationMinIntervalMs,
-  markCaptchaRequired,
   runAccountGeneration
 } from '@/lib/sunoGenerationGuard';
 import { waitForLocalSunoRecovery } from '@/lib/sunoLocalRecovery';
@@ -1037,37 +1035,30 @@ export class SunoApi {
             signal: job?.signal
           });
           // Persist the wakeup event first. SMS delivery must not delay the Mac.
-          const block = markCaptchaRequired(accountKey);
-          if (block.newlyBlocked) {
-            void notifyCaptchaFailure({
-              error: new SunoCaptchaManualInterventionError(),
-              feishuNotifier: new FeishuNotifier(),
-              formatError: () => 'API and server browser unavailable; local browser recovery requested'
-            }).catch(() => logger.warn('Failed to send captcha notification'));
-          }
+          void notifyCaptchaFailure({
+            error: new SunoCaptchaManualInterventionError(),
+            feishuNotifier: new FeishuNotifier(),
+            formatError: () => 'API and server browser unavailable; local browser recovery requested'
+          }).catch(() => logger.warn('Failed to send captcha notification'));
           const result = await pendingRecovery.catch((error) => {
             throw error;
           });
           job?.signal.throwIfAborted();
           await this.refreshAuth();
-          clearCaptchaCooldown(accountKey);
           logger.info({ accountId: accountKey, eventId: result.eventId, warmupClipIds: result.clipIds },
             'Suno local browser completed; rechecking and retrying original generation');
           await new Promise((resolve) => setTimeout(resolve, Math.min(generationMinIntervalMs(), 15_000)));
         },
         manualRequired: async (cause) => {
-          const block = markCaptchaRequired(accountKey);
-          const error = new SunoCaptchaManualInterventionError(block.retryAfterSeconds);
+          const error = new SunoCaptchaManualInterventionError();
           logger.warn({ accountId: accountKey, reason: cause instanceof Error ? cause.message : undefined },
             'Suno captcha recovery failed; manual verification required');
-          if (block.newlyBlocked) {
-            // Notification transport must not extend the caller's generation timeout.
-            void notifyCaptchaFailure({
-              error,
-              feishuNotifier: new FeishuNotifier(),
-              formatError: (value) => value instanceof Error ? value.message : String(value)
-            }).catch(() => logger.warn('Failed to send captcha notification'));
-          }
+          // Notification transport must not extend the caller's generation timeout.
+          void notifyCaptchaFailure({
+            error,
+            feishuNotifier: new FeishuNotifier(),
+            formatError: (value) => value instanceof Error ? value.message : String(value)
+          }).catch(() => logger.warn('Failed to send captcha notification'));
           return error;
         },
         fallback: process.env.SUNO_SERVER_BROWSER_FALLBACK === 'true' && serverBrowserFallbackCompatible

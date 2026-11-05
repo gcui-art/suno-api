@@ -232,6 +232,7 @@ export class SunoCaptchaSolver {
   private async triggerCaptcha(page: Page): Promise<void> {
     logger.info('SunoCaptchaSolver: triggering captcha from create page');
     await closeKnownPopups(page);
+    await this.ensureSimpleMode(page);
     logger.info('SunoCaptchaSolver: waiting for prompt textarea');
     const handle = await waitForPromptTextarea(page, 60_000);
     if (!handle) {
@@ -282,6 +283,35 @@ export class SunoCaptchaSolver {
       SUNO_GENERATE_URL_PART,
       logger,
       () => createButton.click()
+    );
+  }
+
+  private async ensureSimpleMode(page: Page): Promise<void> {
+    const simple = page
+      .getByRole('tab', { name: /^Simple$/i })
+      .or(page.getByRole('button', { name: /^Simple$/i }))
+      .first();
+    const advanced = page
+      .getByRole('tab', { name: /^Advanced$/i })
+      .or(page.getByRole('button', { name: /^Advanced$/i }))
+      .first();
+
+    await simple.or(advanced).first().waitFor({ state: 'visible', timeout: 15_000 });
+    if (!(await simple.isVisible().catch(() => false))) {
+      throw new Error('Suno create page did not expose the Simple mode tab');
+    }
+    if ((await simple.getAttribute('aria-selected').catch(() => null)) === 'true') {
+      return;
+    }
+
+    logger.info('SunoCaptchaSolver: create page is in Advanced mode; switching to Simple');
+    await simple.click({ timeout: 15_000 });
+    await page.waitForFunction(
+      () => Array.from(document.querySelectorAll('[role="tab"]')).some(
+        (tab) => tab.textContent?.trim().toLowerCase() === 'simple'
+          && tab.getAttribute('aria-selected') === 'true'
+      ),
+      { timeout: 15_000 }
     );
   }
 

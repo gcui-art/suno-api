@@ -98,3 +98,43 @@ test('clicks tiles 1, 6 and 7 for the reported YesCaptcha response inside an off
     await browser.close();
   }
 });
+
+test('switches an Advanced create page back to Simple before captcha input', async () => {
+  const browser = await chromium.launch({ headless: true });
+  try {
+    const page = await browser.newPage();
+    await page.setContent(`
+      <div role="tablist">
+        <button role="tab" aria-selected="false">Simple</button>
+        <button role="tab" aria-selected="true">Advanced</button>
+      </div>
+      <script>
+        for (const tab of document.querySelectorAll('[role="tab"]')) {
+          tab.addEventListener('click', () => {
+            for (const other of document.querySelectorAll('[role="tab"]')) {
+              other.setAttribute('aria-selected', String(other === tab));
+            }
+          });
+        }
+      </script>
+    `);
+    const solver = Object.create(
+      SunoCaptchaSolver.prototype
+    ) as SunoCaptchaSolver;
+    await solver['ensureSimpleMode'](page);
+    assert.equal(
+      await page
+        .getByRole('tab', { name: 'Simple' })
+        .getAttribute('aria-selected'),
+      'true'
+    );
+    assert.equal(
+      await page
+        .getByRole('tab', { name: 'Advanced' })
+        .getAttribute('aria-selected'),
+      'false'
+    );
+  } finally {
+    await browser.close();
+  }
+});

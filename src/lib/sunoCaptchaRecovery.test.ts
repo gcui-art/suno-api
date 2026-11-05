@@ -49,7 +49,7 @@ test('persistent captcha triggers one recovery and one manual notification', asy
     precheck: async () => undefined,
     submit: async () => { assert.fail('blocked request submitted'); },
     recover: async () => { recoveries++; },
-    manualRequired: async () => { alerts++; return new SunoCaptchaManualInterventionError(1800); }
+    manualRequired: async () => { alerts++; return new SunoCaptchaManualInterventionError(); }
   }), SunoCaptchaManualInterventionError);
   assert.equal(recoveries, 1);
   assert.equal(alerts, 1);

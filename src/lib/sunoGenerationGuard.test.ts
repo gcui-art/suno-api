@@ -1,12 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { randomUUID } from 'node:crypto';
-import { SunoCaptchaManualInterventionError } from './sunoCaptchaErrors';
-import {
-  clearCaptchaCooldown,
-  markCaptchaRequired,
-  runAccountGeneration
-} from './sunoGenerationGuard';
+import { runAccountGeneration } from './sunoGenerationGuard';
 
 test('serializes generation attempts for one account', async () => {
   const accountId = `serialize-${Date.now()}`;
@@ -28,25 +23,13 @@ test('serializes generation attempts for one account', async () => {
   }
 });
 
-test('blocks attempts during captcha cooldown and clears after cookie update', async () => {
-  const accountId = `captcha-${Date.now()}`;
-  markCaptchaRequired(accountId);
-  await assert.rejects(
-    runAccountGeneration(accountId, async () => 'unexpected'),
-    SunoCaptchaManualInterventionError
-  );
-  clearCaptchaCooldown(accountId);
-  assert.equal(await runAccountGeneration(accountId, async () => 'ok'), 'ok');
-});
-
-test('queued requests retain spacing after a browser recovery clears cooldown', async () => {
+test('queued requests retain spacing after the previous generation', async () => {
   const accountId = `recovered-${Date.now()}`;
   const previousInterval = process.env.SUNO_GENERATION_MIN_INTERVAL_MS;
   process.env.SUNO_GENERATION_MIN_INTERVAL_MS = '25';
   let finishedAt = 0;
   try {
     const first = runAccountGeneration(accountId, async () => {
-      clearCaptchaCooldown(accountId);
       await new Promise((resolve) => setTimeout(resolve, 30));
       finishedAt = Date.now();
     });
