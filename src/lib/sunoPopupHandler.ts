@@ -11,6 +11,7 @@ const logger = pino();
  * 已知文案：
  * - 促销："You've unlocked 20% off Premier annual."
  * - 账单："Update Billing / We were unable to process your recent subscription renewal."
+ * - 新功能："Start your ideas with MIDI."
  */
 export const BLOCKING_DIALOG_TEXT_RE = new RegExp(
   [
@@ -22,6 +23,9 @@ export const BLOCKING_DIALOG_TEXT_RE = new RegExp(
     'unable\\s+to\\s+process\\s+your\\s+recent\\s+subscription',
     'retry\\s+payment',
     'update\\s+your\\s+payment\\s+method',
+    'start\\s+your\\s+ideas\\s+with\\s+midi',
+    'perform\\s+this\\s+midi',
+    'new\\s+feature',
   ].join('|'),
   'i'
 );
@@ -56,17 +60,24 @@ async function waitUntilHidden(page: Page, locator: Locator, timeoutMs: number):
 }
 
 export async function closeKnownPopups(page: Page): Promise<void> {
-  for (const selector of COOKIE_BANNER_SELECTORS) {
-    const button = page.locator(selector).first();
-    if (!(await isVisible(button))) continue;
+  for (let attempt = 0; attempt < 3; attempt += 1) {
+    let handled = await dismissBlockingDialog(page);
 
-    const clicked = await button.click({ timeout: 2_000 })
-      .then(() => true)
-      .catch(() => false);
-    if (!clicked) continue;
+    for (const selector of COOKIE_BANNER_SELECTORS) {
+      const button = page.locator(selector).first();
+      if (!(await isVisible(button))) continue;
 
-    await page.waitForTimeout(300);
-    return;
+      const clicked = await button.click({ timeout: 2_000 })
+        .then(() => true)
+        .catch(() => false);
+      if (!clicked) continue;
+
+      await page.waitForTimeout(300);
+      handled = true;
+      break;
+    }
+
+    if (!handled) return;
   }
 }
 
