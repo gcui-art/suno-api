@@ -158,7 +158,7 @@ test('only accepts successful responses with non-empty valid clips', async () =>
   );
 });
 
-test('continues one browser request with actual payload and original headers', async () => {
+test('continues a Simple page request with the complete cover payload and original headers', async () => {
   let capturedRequest: CapturedHttpRequest | undefined;
   const server = createGenerateServer((request) => {
     capturedRequest = request;
@@ -175,6 +175,13 @@ test('continues one browser request with actual payload and original headers', a
       page,
       {
         prompt: 'actual prompt',
+        task: 'cover',
+        cover_clip_id: 'original-cover-clip',
+        cover_start_s: 0,
+        cover_end_s: 120,
+        persona_id: 'original-persona',
+        metadata: { create_mode: 'custom' },
+        transaction_uuid: 'original-transaction',
         token: null,
         token_provider: null,
         override_fields: ['prompt'],
@@ -197,6 +204,8 @@ test('continues one browser request with actual payload and original headers', a
         },
         body: JSON.stringify({
           prompt: 'placeholder',
+          metadata: { create_mode: 'simple' },
+          gpt_description_prompt: 'placeholder description',
           token: 'browser-captcha-token',
           token_provider: 2
         })
@@ -208,6 +217,13 @@ test('continues one browser request with actual payload and original headers', a
     assert.equal(status, 200);
     assert.deepEqual(capturedRequest?.body, {
       prompt: 'actual prompt',
+      task: 'cover',
+      cover_clip_id: 'original-cover-clip',
+      cover_start_s: 0,
+      cover_end_s: 120,
+      persona_id: 'original-persona',
+      metadata: { create_mode: 'custom' },
+      transaction_uuid: 'original-transaction',
       token: 'browser-captcha-token',
       token_provider: 2,
       override_fields: ['prompt'],

@@ -912,13 +912,14 @@ export class SunoApi {
     payload: SunoGeneratePayload
   ): Promise<SunoGenerateClip[]> {
     const accountKey = this.accountId || 'default';
+    const solverEnabled = process.env.SUNO_SERVER_BROWSER_SOLVER === 'true';
     const browserCompatible = !payload.task && !payload.continue_clip_id &&
       !payload.cover_clip_id && !payload.audio_id;
     const createMode = payload.metadata && typeof payload.metadata === 'object'
       ? (payload.metadata as Record<string, unknown>).create_mode : undefined;
     const customPromptLength = typeof payload.prompt === 'string' ? payload.prompt.length : 0;
     const customTagsLength = typeof payload.tags === 'string' ? payload.tags.length : 0;
-    const serverBrowserFallbackCompatible = browserCompatible &&
+    const websiteFallbackCompatible = browserCompatible &&
       payload.generation_type === 'TEXT' &&
       // 普通文本生成不会写 metadata.create_mode，缺省即等价于 Simple。
       (createMode === undefined || createMode === 'simple' || createMode === 'custom') &&
@@ -926,6 +927,10 @@ export class SunoApi {
       customPromptLength <= 5_000 && customTagsLength <= 1_000 &&
       !payload.user_uploaded_images_b64 &&
       (!payload.mv || payload.mv === 'chirp-hawk');
+    // The solver submits the original payload after verification in Simple mode.
+    // Only website form filling is constrained by the fields exposed in the UI.
+    const serverBrowserFallbackEnabled = process.env.SUNO_SERVER_BROWSER_FALLBACK === 'true' &&
+      (solverEnabled || websiteFallbackCompatible);
     if (process.env.SUNO_GENERATION_TRANSPORT === 'browser' && browserCompatible) {
       if (!this.accountId) throw new Error('Browser generation requires an account id');
       return runAccountGeneration(accountKey, async () => {
@@ -958,9 +963,8 @@ export class SunoApi {
           throw error;
         }
       }
-      // Set when Suno's own pre-check demands a captcha. In that state the server
-      // browser shares the same datacenter IP/session risk and has always hit the
-      // same challenge, so go straight to local browser recovery instead.
+      // The skip setting applies only to website form filling; the solver can
+      // handle challenges explicitly required by the pre-check.
       let precheckCaptcha = false;
       const skipBrowserOnPrecheck = process.env.SUNO_SKIP_BROWSER_FALLBACK_ON_PRECHECK !== 'false';
       return submitWithCaptchaRecovery({
@@ -1024,8 +1028,7 @@ export class SunoApi {
         },
         recover: async () => {
           if (process.env.SUNO_LOCAL_RECOVERY_FALLBACK !== 'true') {
-            // 服务端求解器已经失败过；再等一个可能永远不来的本地浏览器只会白白耗掉超时。
-            throw new Error('Local browser recovery disabled; server captcha solver could not recover');
+            throw new Error('Local browser recovery is disabled');
           }
           logger.warn({ accountId: accountKey }, 'Suno captcha detected; waiting for local browser recovery');
           const job = getCurrentSunoGenerationJob();
@@ -1050,7 +1053,7 @@ export class SunoApi {
           await new Promise((resolve) => setTimeout(resolve, Math.min(generationMinIntervalMs(), 15_000)));
         },
         manualRequired: async (cause) => {
-          const error = new SunoCaptchaManualInterventionError();
+          const error = new SunoCaptchaManualInterventionError(cause);
           logger.warn({ accountId: accountKey, reason: cause instanceof Error ? cause.message : undefined },
             'Suno captcha recovery failed; manual verification required');
           // Notification transport must not extend the caller's generation timeout.
@@ -1061,10 +1064,9 @@ export class SunoApi {
           }).catch(() => logger.warn('Failed to send captcha notification'));
           return error;
         },
-        fallback: process.env.SUNO_SERVER_BROWSER_FALLBACK === 'true' && serverBrowserFallbackCompatible
+        fallback: serverBrowserFallbackEnabled
           ? async (cause) => {
               if (!this.accountId) throw new Error('Server browser fallback requires an account id');
-              const solverEnabled = process.env.SUNO_SERVER_BROWSER_SOLVER === 'true';
               if (skipBrowserOnPrecheck && precheckCaptcha && !solverEnabled) {
                 logger.warn({ accountId: accountKey },
                   'Suno pre-check requires captcha; skipping server browser, requesting local browser recovery');

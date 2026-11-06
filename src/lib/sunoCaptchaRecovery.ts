@@ -57,7 +57,7 @@ export async function submitWithCaptchaRecovery<T>(
       if (error && typeof error === 'object' &&
         ['SUNO_BROWSER_RECOVERY_CAPACITY', 'SUNO_LOCAL_RECOVERY_REQUIRED', 'SUNO_GENERATION_TIMEOUT']
           .includes(String((error as { code?: unknown }).code))) throw error;
-      throw await operations.manualRequired(error);
+      throw await operations.manualRequired(fallbackFailure ?? error);
     }
     // A local warmup cannot prove that an earlier browser POST failed.
     if (!replaySafe) throw fallbackFailure;

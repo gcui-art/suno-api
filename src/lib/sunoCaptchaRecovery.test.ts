@@ -180,6 +180,20 @@ test('unknown server submission triggers local recovery but never replays the or
   assert.equal(locals, 1);
 });
 
+test('local recovery failure preserves the original server solver failure for manual intervention', async () => {
+  const failure = new Error('server captcha challenge failed');
+  await assert.rejects(submitWithCaptchaRecovery({
+    precheck: async () => undefined,
+    submit: async () => { assert.fail('blocked request submitted'); },
+    fallback: async () => { throw failure; },
+    recover: async () => { throw new Error('Local browser recovery is disabled'); },
+    manualRequired: async (cause) => {
+      assert.equal(cause, failure);
+      return new SunoCaptchaManualInterventionError(cause);
+    }
+  }), (error: unknown) => error instanceof SunoCaptchaManualInterventionError && error.cause === failure);
+});
+
 test('all three stages remain bounded when captcha persists', async () => {
   let locals = 0, servers = 0;
   await assert.rejects(submitWithCaptchaRecovery({
