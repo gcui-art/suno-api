@@ -24,6 +24,7 @@
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
+logs/
 
 # local env files
 .env*.local
@@ -37,3 +38,5 @@ yarn-error.log*
 next-env.d.ts
 
 .idea
+data/
+scratch/hcaptcha-first/

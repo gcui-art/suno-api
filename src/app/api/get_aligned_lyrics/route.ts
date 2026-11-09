@@ -1,5 +1,4 @@
 import { NextResponse, NextRequest } from "next/server";
-import { cookies } from 'next/headers'
 import { sunoApi } from "@/lib/SunoApi";
 import { corsHeaders } from "@/lib/utils";
 
@@ -21,7 +20,7 @@ export async function GET(req: NextRequest) {
         });
       }
 
-      const lyricAlignment = await (await sunoApi((await cookies()).toString())).getLyricAlignment(song_id);
+      const lyricAlignment = await (await sunoApi()).getLyricAlignment(song_id);
 
 
       return new NextResponse(JSON.stringify(lyricAlignment), {

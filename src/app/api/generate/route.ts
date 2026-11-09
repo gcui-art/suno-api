@@ -1,100 +1,63 @@
-import { NextResponse, NextRequest } from "next/server";
-import { cookies } from 'next/headers'
-import { DEFAULT_MODEL, sunoApi } from "@/lib/SunoApi";
-import { corsHeaders } from "@/lib/utils";
+import { NextRequest } from "next/server";
+import { sunoApi } from "@/lib/SunoApi";
+import { getSunoGenerateModeRequest } from "@/lib/sunoGenerateRequest";
+import { prefersAsyncGeneration, runSunoGenerationJob } from "@/lib/sunoGenerationJobs";
+import { pickAccount } from "@/lib/accountStore";
+import { errorResponse, jsonResponse, optionsResponse } from "@/app/api/sunoProxyResponse";
 
+export const maxDuration = 180;
 export const dynamic = "force-dynamic";
 
 export async function POST(req: NextRequest) {
-  if (req.method === 'POST') {
-    try {
-      const body = await req.json();
-      const { prompt, make_instrumental, model, wait_audio } = body;
-
-      const audioInfo = await (await sunoApi((await cookies()).toString())).generate(
-        prompt,
-        Boolean(make_instrumental),
-        model || DEFAULT_MODEL,
-        Boolean(wait_audio)
-      );
-
-      return new NextResponse(JSON.stringify(audioInfo), {
-        status: 200,
-        headers: {
-          'Content-Type': 'application/json',
-          ...corsHeaders
+  try {
+    const body = await req.json();
+    const outcome = await runSunoGenerationJob(
+      {
+        namespace: 'generate',
+        idempotencyKey: req.headers.get('Idempotency-Key'),
+        body,
+        respondAsync: prefersAsyncGeneration(req.headers.get('Prefer')),
+        selectAccount: async () => {
+          const account = await pickAccount();
+          if (!account) throw new Error('No Suno account is configured');
+          return account.id;
         }
-      });
-    } catch (error: any) {
-      console.error('Error generating audio:', error);
-      
-      // Handle different types of errors
-      if (error.response) {
-        // Axios error with response
-        console.error('Response error:', JSON.stringify(error.response.data));
-        
-        if (error.response.status === 402) {
-          return new NextResponse(JSON.stringify({ 
-            error: error.response.data?.detail || 'Payment required' 
-          }), {
-            status: 402,
-            headers: {
-              'Content-Type': 'application/json',
-              ...corsHeaders
-            }
-          });
-        }
-        
-        return new NextResponse(JSON.stringify({ 
-          error: 'API Error: ' + (error.response.data?.detail || error.response.statusText || 'Unknown error')
-        }), {
-          status: error.response.status || 500,
-          headers: {
-            'Content-Type': 'application/json',
-            ...corsHeaders
-          }
-        });
-      } else if (error.request) {
-        // Axios error without response (network error, timeout, etc.)
-        console.error('Network error:', error.message);
-        return new NextResponse(JSON.stringify({ 
-          error: 'Network error: Unable to connect to Suno API. Please check your internet connection and try again.' 
-        }), {
-          status: 503,
-          headers: {
-            'Content-Type': 'application/json',
-            ...corsHeaders
-          }
-        });
-      } else {
-        // Other types of errors (timeout, etc.)
-        console.error('Other error:', error.message);
-        return new NextResponse(JSON.stringify({ 
-          error: 'Internal error: ' + (error.message || 'Unknown error occurred') 
-        }), {
-          status: 500,
-          headers: {
-            'Content-Type': 'application/json',
-            ...corsHeaders
-          }
-        });
-      }
-    }
-  } else {
-    return new NextResponse('Method Not Allowed', {
-      headers: {
-        Allow: 'POST',
-        ...corsHeaders
       },
-      status: 405
-    });
+      async (job) => {
+        const request = getSunoGenerateModeRequest(job.body);
+        return (await sunoApi(job.accountId)).generate(
+          request.prompt,
+          request.make_instrumental,
+          request.model,
+          request.wait_audio,
+          { ...request.options, transaction_uuid: job.transactionUuid },
+          request.isCustom
+            ? {
+                tags: request.tags,
+                title: request.title,
+                negative_tags: request.negative_tags
+              }
+            : undefined
+        );
+      }
+    );
+
+    const response = outcome.status === 'succeeded'
+      ? jsonResponse(outcome.result)
+      : outcome.status === 'pending' ? jsonResponse(outcome, 202) : errorResponse(outcome.error);
+    response.headers.set('X-Generation-Request-Id', outcome.request_id);
+    response.headers.set('Cache-Control', 'no-store');
+    if (outcome.status === 'pending') {
+      response.headers.set('Retry-After', String(outcome.retry_after_seconds));
+      response.headers.set('Location', outcome.status_url);
+    }
+    return response;
+  } catch (error: any) {
+    console.error('Error generating audio:', error);
+    return errorResponse(error);
   }
 }
 
-
-export async function OPTIONS(request: Request) {
-  return new Response(null, {
-    status: 200,
-    headers: corsHeaders
-  });
+export async function OPTIONS() {
+  return optionsResponse();
 }
